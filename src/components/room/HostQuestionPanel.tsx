@@ -15,7 +15,7 @@ interface HostQuestionPanelProps {
 
 /**
  * 방장 전용. 두 가지로 라운드를 시작한다.
- *  1) 랜덤 질문   — questions_bank 에서 뽑아 "{닉네임}" + 문장 조합
+ *  1) 랜덤 질문   — public/questions.csv 에서 뽑아 "{닉네임}" + 문장 조합
  *  2) 직접 입력   — 자유 형식 질문 그대로
  */
 export function HostQuestionPanel({

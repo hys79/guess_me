@@ -288,11 +288,7 @@ export default function RoomPage() {
                   locked={false}
                 />
               ) : null}
-              <AnswerProgress
-                responders={responders}
-                answers={roundAnswers}
-                phase="collecting"
-              />
+              <AnswerProgress responders={responders} answers={roundAnswers} />
               {isHost ? (
                 <button
                   onClick={handleManualClose}

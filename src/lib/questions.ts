@@ -43,9 +43,13 @@ async function loadQuestions(): Promise<string[]> {
   return inflight;
 }
 
-/** 방장 닉네임 뒤에 붙일 무작위 질문 문장. 목록이 비어 있으면 null. */
+/** 방장 닉네임 뒤에 붙일 무작위 질문 문장. 로드 실패/빈 목록이면 null. */
 export async function pickRandomQuestionSuffix(): Promise<string | null> {
-  const list = await loadQuestions();
-  if (list.length === 0) return null;
-  return list[Math.floor(Math.random() * list.length)];
+  try {
+    const list = await loadQuestions();
+    if (list.length === 0) return null;
+    return list[Math.floor(Math.random() * list.length)];
+  } catch {
+    return null;
+  }
 }

@@ -6,32 +6,13 @@ interface AnswerProgressProps {
   /** 답변 대상 플레이어 (방장 제외) */
   responders: Player[];
   answers: Answer[];
-  /** "collecting" 이면 이름+제출여부, "scoring" 이면 채점 진행도만 */
-  phase: "collecting" | "scoring";
 }
 
 /**
- * 답변/채점 진행 상황. collecting 단계에서도 답변 "내용"은 절대 보여주지 않고
- * 누가 제출했는지만 표시한다.
+ * 수집 단계 답변 현황. 답변 "내용"은 보여주지 않고 누가 제출했는지만 표시한다.
  */
-export function AnswerProgress({
-  responders,
-  answers,
-  phase,
-}: AnswerProgressProps) {
+export function AnswerProgress({ responders, answers }: AnswerProgressProps) {
   const answeredIds = new Set(answers.map((a) => a.player_id));
-  const scoredCount = answers.filter((a) => a.score !== null).length;
-
-  if (phase === "scoring") {
-    return (
-      <div className="card text-center text-sm text-slate-600">
-        채점 진행 <span className="font-bold text-primary-700">{scoredCount}</span>
-        {" / "}
-        {answers.length}
-      </div>
-    );
-  }
-
   const doneCount = responders.filter((p) => answeredIds.has(p.id)).length;
 
   return (

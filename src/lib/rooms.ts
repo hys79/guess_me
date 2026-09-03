@@ -71,7 +71,10 @@ interface JoinRoomInput {
   nickname: string;
 }
 
-/** 참가 코드로 입장한다. 같은 방 안 닉네임 중복은 막는다. */
+/**
+ * 참가 코드로 입장한다. 같은 방 안 닉네임 중복은 막는다.
+ * 진행 중인 게임에도 언제든 참가할 수 있다(일반 참가자로 합류).
+ */
 export async function joinRoom(
   input: JoinRoomInput,
 ): Promise<{ room: Room; player: Player }> {
@@ -87,9 +90,6 @@ export async function joinRoom(
 
   if (roomError) throw new GameError(roomError.message);
   if (!room) throw new GameError("존재하지 않는 참가 코드입니다.");
-  if (room.status !== "waiting") {
-    throw new GameError("이미 게임이 시작된 방입니다.");
-  }
 
   // 사전 중복 체크 (UX 용). 최종 방어는 unique(room_id, nickname) 제약.
   const { data: existing } = await supabase

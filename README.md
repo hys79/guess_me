@@ -12,9 +12,11 @@
 ## 주요 기능
 
 - 방 생성(닉네임 · 목표 점수 1~20 · 답변 제한시간 5~100초 또는 무제한) → 4자리 참가 코드 발급
-- 참가 코드 + 닉네임으로 입장 (같은 방 내 닉네임 중복 방지)
+- 참가 코드 + 닉네임으로 입장 (같은 방 내 닉네임 중복 방지). **진행 중인 게임에도 언제든 코드로 합류 가능**
 - 대기실: 참가자 실시간 표시, 방장만 게임 시작(최소 2명)
-- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(🙂 / 🤔 / 😠) → 결과 공개 → 방장 교체**
+- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(🙂 / 🤔 / 😠) → 결과 공개(접기/펼치기) → 방장 교체**
+- 목표 점수 도달 시 그 사람이 새 방장이 되고 **누적 점수 전원 초기화**. 방장이 나가면 남은 사람 중 최고 점수(동점 랜덤)가 자동 승계
+- 시간 초과로 미제출 시 빈 답변 -1점 페널티, 수정 중에는 시간이 남아 있으면 자동 마감 안 됨
 - 제한시간 카운트다운(마지막 5초 강조), 답변 현황판, 상시 누적 점수판(점수 변동 애니메이션)
 - Supabase Realtime 으로 모든 참가자 화면이 즉시 동기화
 - 사운드 설정 팝업(전체 음소거 · 배경음악/효과음 볼륨)
@@ -41,10 +43,9 @@ npm install
 
 1. <https://supabase.com/dashboard> 에서 **New project** 생성 (Region 은 가까운 곳, 예: Northeast Asia (Seoul))
 2. 프로젝트가 준비되면 좌측 **Project Settings → API** 로 이동
-3. 다음 3개 값을 확인해 둔다.
+3. 다음 2개 값을 확인해 둔다.
    - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
    - **Project API keys → `anon` `public`** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **Project API keys → `service_role` `secret`** → `SUPABASE_SERVICE_ROLE_KEY` (서버/스크립트 전용, 절대 공개 금지)
 
 ### 1-3. 데이터베이스 스키마 적용
 
@@ -60,6 +61,7 @@ npm install
 | `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
 | `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 빈 답변에 -1 페널티 (`advance_to_scoring` 갱신) |
 | `0007_fix_answer_time_limit_check.sql` | `rooms.answer_time_limit` CHECK 범위 보정(5~60 → 5~100). 61초 이상 설정 시 나던 제약 위반 해결 |
+| `0008_host_handoff_and_leave.sql` | 방장 교체 시 누적 점수 전원 0 초기화 (`promote_host`) · 방장 탈주 시 최고 점수자 자동 승계 트리거 |
 
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
@@ -69,10 +71,10 @@ npm install
 ### 1-4. 질문 목록
 
 랜덤 질문은 앱에 번들되는 [`public/questions.csv`](public/questions.csv) 를 **실행 시점에 직접 읽는다.**
-따라서 이 파일만 수정해서 커밋/재배포하면 질문이 바로 반영된다. 별도 DB 작업이 필요 없다.
+이 파일만 수정해서 커밋/재배포하면 질문이 바로 반영된다. DB 작업이 전혀 필요 없다.
 
 - 형식: 첫 줄 헤더 `question`, 이후 한 줄에 "방장 닉네임 뒤에 붙일 문장" 하나. 반드시 **UTF-8** 로 저장(현재 파일은 BOM 포함).
-- `questions_bank` 테이블 / `seed.sql` / `npm run import:questions` 는 폴백(CSV 로드 실패 시)용으로만 남겨둔 레거시다. 꼭 채우지 않아도 된다.
+- `questions_bank` 테이블은 초기 마이그레이션에 남아 있지만 앱에서 더 이상 사용하지 않는다.
 
 ### 1-5. 환경변수 파일
 
@@ -85,7 +87,6 @@ cp .env.local.example .env.local
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...   # 질문 임포트 스크립트에서만 사용, 배포에는 불필요
 ```
 
 ### 1-6. 개발 서버
@@ -110,11 +111,9 @@ npm run dev
 | --- | --- | --- | :---: | :---: |
 | `NEXT_PUBLIC_SUPABASE_URL` | Project Settings → API → **Project URL** | 브라우저(클라이언트) | ✅ | ✅ |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Project Settings → API → **anon public** | 브라우저(클라이언트) | ✅ | ✅ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → **service_role secret** | `npm run import:questions` 스크립트 전용 | ✅(질문 임포트 시) | ❌ 불필요 |
 
 - `NEXT_PUBLIC_` 접두어가 붙은 값은 클라이언트 번들에 포함된다. `anon` 키는 원래 공개용이라 문제없다.
-- `SUPABASE_SERVICE_ROLE_KEY` 는 RLS 를 우회하는 강력한 키다. **Vercel 에는 넣지 않는다.** (질문은 CSV 에서 읽으므로 배포에 이 키가 필요 없다.)
-- Vercel 에 넣을 값은 결국 **2개**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+- 필요한 값은 이 **2개뿐**이다. `service_role` 키는 앱에서 쓰지 않는다.
 
 ---
 
@@ -141,9 +140,9 @@ git push -u origin main
 
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
-위 **1-2 ~ 1-4** 를 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0007`)을 그 프로젝트의 SQL Editor 에서 실행한다.
-질문 목록은 CSV 에서 읽으므로 `seed.sql` 은 실행하지 않아도 된다.
+위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0008`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
 
@@ -163,7 +162,7 @@ Import 화면의 **Environment Variables** 섹션(또는 배포 후 **Project �
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxx.supabase.co` | Production, Preview, Development 모두 체크 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOi...` (anon public 키) | Production, Preview, Development 모두 체크 |
 
-`SUPABASE_SERVICE_ROLE_KEY` 는 추가하지 않는다.
+이 2개면 끝이다.
 
 ### 3-5. 배포
 
@@ -192,8 +191,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0007 스키마 · RPC (idempotent)
-  seed.sql                 questions_bank 시드
+  migrations/              0001~0008 스키마 · RPC · 트리거 (idempotent)
 src/
   app/
     page.tsx               랜딩
@@ -215,6 +213,7 @@ src/
     supabase/              client.ts · database.types.ts
     audio/                 sfx.ts (Web Audio 합성) · SoundProvider.tsx
     rooms.ts rounds.ts answers.ts   게임 액션 (RPC 래퍼 포함)
+    questions.ts           public/questions.csv 로드 · 랜덤 질문
     shuffle.ts             결정적 셔플 (채점 순서 고정)
     player.ts constants.ts
 ```
@@ -223,9 +222,9 @@ src/
 
 - **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`)
 - **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 당 1명)
-- **questions_bank** — 기본 질문 문장 풀
 - **rounds** — `room_id` · `question_text` · `target_player_id`(방장) · `status`(`collecting`/`scoring`/`revealed`)
-- **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 🙂 / `0` 🤔 / `-1` 😠). `(round_id, player_id)` 유일
+- **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 🙂 / `0` 🤔 / `-1` 😠) · `is_editing`. `(round_id, player_id)` 유일
+- **questions_bank** — (레거시) 초기 마이그레이션에만 존재, 앱 미사용
 
 라운드 전환은 모두 Postgres RPC 안에서 라운드 row 를 `FOR UPDATE` 로 잠그고 현재 상태를 확인한 뒤 수행하므로,
 여러 클라이언트가 동시에 호출해도 전환은 한 번만 일어난다.
@@ -243,4 +242,3 @@ src/
 | `npm run build` | 프로덕션 빌드 |
 | `npm run start` | 빌드 결과 실행 |
 | `npm run lint` | ESLint |
-| `npm run import:questions` | `public/questions.csv` → `questions_bank` upsert (`SUPABASE_SERVICE_ROLE_KEY` 필요) |

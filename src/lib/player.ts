@@ -49,14 +49,3 @@ export function clearStoredPlayer(roomCode: string): void {
   if (!isBrowser()) return;
   window.localStorage.removeItem(keyFor(roomCode));
 }
-
-/** 내가 참가 중인 모든 방 코드 목록 (로비의 "다시 참가하기" 등에 사용) */
-export function listJoinedRoomCodes(): string[] {
-  if (!isBrowser()) return [];
-  const codes: string[] = [];
-  for (let i = 0; i < window.localStorage.length; i += 1) {
-    const k = window.localStorage.key(i);
-    if (k?.startsWith(KEY_PREFIX)) codes.push(k.slice(KEY_PREFIX.length));
-  }
-  return codes;
-}

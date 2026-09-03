@@ -15,10 +15,3 @@ export const NICKNAME_MAX_LENGTH = 12;
 
 /** 게임 시작에 필요한 최소 인원 */
 export const MIN_PLAYERS_TO_START = 2;
-
-/** 답변 채점 점수 → (이모지, 라벨) */
-export const SCORE_LABEL: Record<string, { emoji: string; text: string }> = {
-  "1": { emoji: "🙂", text: "좋아요" },
-  "0": { emoji: "🤔", text: "글쎄요" },
-  "-1": { emoji: "😠", text: "별로예요" },
-};

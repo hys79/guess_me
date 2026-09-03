@@ -52,16 +52,9 @@ async function insertRound(
 export async function createRandomRound(
   input: NewRoundBase & { hostNickname: string },
 ): Promise<Round> {
-  let suffix: string | null = null;
-  try {
-    suffix = await pickRandomQuestionSuffix();
-  } catch {
-    // CSV 로드 실패 시 questions_bank RPC 로 폴백
-    const { data } = await supabase.rpc("pick_random_question");
-    suffix = data ?? null;
-  }
+  const suffix = await pickRandomQuestionSuffix();
   if (!suffix) {
-    throw new GameError("질문 목록을 불러오지 못했습니다.");
+    throw new GameError("질문 목록을 불러오지 못했습니다. (public/questions.csv)");
   }
   const question = `${input.hostNickname}${suffix}`;
   return insertRound(input.roomId, input.hostPlayerId, question);

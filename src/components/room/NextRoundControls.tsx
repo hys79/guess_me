@@ -56,6 +56,8 @@ export function NextRoundControls({
         </p>
         <p className="text-xs text-slate-400">
           이제 이 사람이 새 방장이 되어 대기실에서 다음 라운드를 시작합니다.
+          <br />
+          모든 참가자의 누적 점수는 0으로 초기화됩니다.
         </p>
         <button
           onClick={handlePromote}
