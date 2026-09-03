@@ -1,0 +1,41 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js / build output
+/.next/
+/out/
+/build
+next-env.d.ts
+
+# vercel
+/.vercel
+
+# env — 실제 키가 담긴 파일은 절대 커밋하지 않는다 (.env.local.example 은 커밋됨)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# typescript / tooling caches
+*.tsbuildinfo
+.eslintcache
+
+# misc
+.DS_Store
+*.pem
+
+# editor
+.vscode/
+.idea/
+
+# 사용자가 직접 추가하는 배경음악 (원하면 이 줄을 지우고 커밋해도 됨)
+/public/audio/bgm.mp3

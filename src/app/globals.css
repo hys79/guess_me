@@ -1,0 +1,190 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --brand: #2563eb;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-white text-slate-900 antialiased;
+  }
+
+  /* iOS 에서 폰트 16px 미만 입력 시 자동 확대되는 것 방지 */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  /* 터치 하이라이트 최소화 */
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-[44px] items-center justify-center rounded-xl bg-primary-600 px-4 py-2
+           text-sm font-semibold text-white shadow-sm transition-all duration-150
+           hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500
+           focus:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed
+           disabled:opacity-50 disabled:active:scale-100;
+  }
+
+  .btn-secondary {
+    @apply inline-flex min-h-[44px] items-center justify-center rounded-xl border border-primary-200
+           bg-primary-50 px-4 py-2 text-sm font-semibold text-primary-700
+           transition-all duration-150 hover:bg-primary-100 focus:outline-none
+           focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 active:scale-[0.98]
+           disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  }
+
+  .input-field {
+    @apply w-full rounded-xl border border-slate-300 px-3 py-2.5 text-base
+           transition-colors placeholder:text-slate-400 focus:border-primary-500
+           focus:outline-none focus:ring-2 focus:ring-primary-500;
+  }
+
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   애니메이션
+--------------------------------------------------------------------------- */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.85);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes score-up {
+  0% {
+    background-color: rgba(37, 99, 235, 0);
+  }
+  25% {
+    background-color: rgba(37, 99, 235, 0.16);
+  }
+  100% {
+    background-color: rgba(37, 99, 235, 0);
+  }
+}
+
+@keyframes score-down {
+  0% {
+    background-color: rgba(239, 68, 68, 0);
+  }
+  25% {
+    background-color: rgba(239, 68, 68, 0.16);
+  }
+  100% {
+    background-color: rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-22px);
+    opacity: 0;
+  }
+}
+
+@keyframes timer-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.32s ease-out both;
+}
+.animate-slide-up {
+  animation: slide-up 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-pop {
+  animation: pop 0.3s ease-out both;
+}
+.animate-score-up {
+  animation: score-up 1.2s ease-out both;
+}
+.animate-score-down {
+  animation: score-down 1.2s ease-out both;
+}
+.animate-timer-pulse {
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+.score-delta {
+  animation: float-up 1.1s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
