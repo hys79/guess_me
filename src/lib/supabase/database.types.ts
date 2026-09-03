@@ -59,6 +59,7 @@ export type Answer = {
   answer_text: string;
   score: AnswerScore | null;
   submitted_at: string;
+  is_editing: boolean;
 };
 
 export interface Database {
@@ -119,6 +120,7 @@ export interface Database {
           answer_text: string;
           score?: AnswerScore | null;
           submitted_at?: string;
+          is_editing?: boolean;
         };
         Update: Partial<Answer>;
         Relationships: [];

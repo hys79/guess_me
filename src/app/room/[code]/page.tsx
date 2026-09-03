@@ -14,6 +14,7 @@ import { QuestionDisplay } from "@/components/room/QuestionDisplay";
 import { HostQuestionPanel } from "@/components/room/HostQuestionPanel";
 import { AnswerInput } from "@/components/room/AnswerInput";
 import { AnswerProgress } from "@/components/room/AnswerProgress";
+import { AnswersReadonly } from "@/components/room/AnswersReadonly";
 import { ScoringPanel } from "@/components/room/ScoringPanel";
 import { RevealPanel } from "@/components/room/RevealPanel";
 import { Scoreboard } from "@/components/room/Scoreboard";
@@ -63,8 +64,14 @@ export default function RoomPage() {
       if (responders.length === 0) return;
       const answered = new Set(roundAnswers.map((a) => a.player_id));
       const done = responders.filter((p) => answered.has(p.id)).length;
+      // 수정 중인 참여자가 있으면(시간이 남아 있는 한) 자동으로 넘어가지 않는다.
+      const someoneEditing = roundAnswers.some((a) => a.is_editing);
       const sig = `${round.id}:${done}/${responders.length}`;
-      if (done === responders.length && advanceSigRef.current !== sig) {
+      if (
+        done === responders.length &&
+        !someoneEditing &&
+        advanceSigRef.current !== sig
+      ) {
         advanceSigRef.current = sig;
         void advanceToScoring(round.id).catch(() => {
           advanceSigRef.current = "";
@@ -212,6 +219,27 @@ export default function RoomPage() {
       ? `${round.id}:${round.status}`
       : `noround:${room.status}`;
 
+    const answeredIds = new Set(roundAnswers.map((a) => a.player_id));
+    const allAnswered =
+      responders.length > 0 && responders.every((p) => answeredIds.has(p.id));
+    const someoneEditing = roundAnswers.some((a) => a.is_editing);
+
+    // 방장이 "답변 마감하고 채점 시작" 을 눌렀을 때
+    const handleManualClose = () => {
+      if (!round || round.status !== "collecting") return;
+      play("click");
+      if (!allAnswered || someoneEditing) {
+        const ok = window.confirm(
+          "아직 모든 참여자가 답변을 작성하지 않았습니다!\n그래도 채점을 시작할까요?",
+        );
+        if (!ok) return;
+      }
+      advanceSigRef.current = `${round.id}:manual`;
+      void advanceToScoring(round.id).catch(() => {
+        advanceSigRef.current = "";
+      });
+    };
+
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pb-8 pt-14 sm:px-6 sm:pt-12">
         <div className="flex items-center justify-between pr-10 text-xs text-slate-400">
@@ -257,10 +285,7 @@ export default function RoomPage() {
               />
               {isHost ? (
                 <button
-                  onClick={() => {
-                    play("click");
-                    handleExpire();
-                  }}
+                  onClick={handleManualClose}
                   className="btn-secondary w-full text-sm"
                 >
                   답변 마감하고 채점 시작
@@ -277,10 +302,10 @@ export default function RoomPage() {
                 <div className="card text-center text-sm text-slate-500">
                   방장이 채점 중입니다...
                 </div>
-                <AnswerProgress
-                  responders={responders}
+                <AnswersReadonly
                   answers={roundAnswers}
-                  phase="scoring"
+                  players={game.players}
+                  title="제출된 답변"
                 />
               </>
             )

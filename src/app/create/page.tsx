@@ -108,7 +108,7 @@ export default function CreateRoomPage() {
             </button>
           </div>
           <RangeField
-            label={unlimited ? "무제한" : `${timeLimit}초`}
+            label={unlimited ? "무제한" : ""}
             value={timeLimit}
             min={ANSWER_TIME_LIMIT_MIN}
             max={ANSWER_TIME_LIMIT_MAX}

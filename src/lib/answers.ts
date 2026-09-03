@@ -24,6 +24,7 @@ export async function submitAnswer(input: {
         player_id: input.playerId,
         answer_text: text,
         score: null,
+        is_editing: false,
       },
       { onConflict: "round_id,player_id" },
     )
@@ -34,6 +35,22 @@ export async function submitAnswer(input: {
     throw new GameError(error?.message ?? "답변 제출에 실패했습니다.");
   }
   return data;
+}
+
+/**
+ * 참여자가 제출 후 "수정 중" 상태로 들어가거나 빠져나올 때 호출.
+ * 수정 중인 참여자가 있으면 다른 사람이 다 제출해도 자동으로 채점 단계로
+ * 넘어가지 않는다. (시간 만료 시에는 무시하고 넘어감)
+ */
+export async function setAnswerEditing(input: {
+  answerId: string;
+  isEditing: boolean;
+}): Promise<void> {
+  const { error } = await supabase
+    .from("answers")
+    .update({ is_editing: input.isEditing })
+    .eq("id", input.answerId);
+  if (error) throw new GameError(error.message);
 }
 
 /** 방장 채점 (scoring 단계). 공개 전까지는 몇 번이든 다시 매길 수 있다. */

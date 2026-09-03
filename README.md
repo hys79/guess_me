@@ -1,6 +1,7 @@
-# guess me
+# Guess Me!
 
-닉네임 기반 실시간 추측 게임. 방장이 자신에 대한 질문을 던지면, 나머지 참가자들이 답을 적고,
+"나를 가장 잘 아는 사람은 누구?" — 닉네임 기반 실시간 추측 게임.
+방장이 자신에 대한 질문을 던지면, 나머지 참가자들이 답을 적고,
 방장이 익명으로 채점한 뒤 결과를 함께 공개한다. 목표 점수에 먼저 도달한 사람이 다음 방장이 된다.
 
 - **프레임워크**: Next.js 15 (App Router) · React 19 · TypeScript
@@ -57,6 +58,7 @@ npm install
 | `0003_pick_random_question.sql` | 무작위 질문 RPC `pick_random_question()` (현재는 폴백용) |
 | `0004_round_lifecycle.sql` | 라운드 전환 RPC `advance_to_scoring` / `finalize_round` / `promote_host` |
 | `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
+| `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 빈 답변에 -1 페널티 (`advance_to_scoring` 갱신) |
 
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
@@ -139,7 +141,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-4** 를 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0005`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0006`)을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문 목록은 CSV 에서 읽으므로 `seed.sql` 은 실행하지 않아도 된다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -189,7 +191,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0004 스키마 · RPC (idempotent)
+  migrations/              0001~0006 스키마 · RPC (idempotent)
   seed.sql                 questions_bank 시드
 src/
   app/

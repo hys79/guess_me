@@ -1,7 +1,8 @@
 "use client";
 
 interface RangeFieldProps {
-  label: string;
+  /** 비우면 왼쪽 라벨을 렌더링하지 않는다 (숫자 입력만 오른쪽에 표시) */
+  label?: string;
   value: number;
   min: number;
   max: number;
@@ -27,7 +28,11 @@ export function RangeField({
   return (
     <div className={disabled ? "opacity-40" : ""}>
       <div className="mb-2 flex items-baseline justify-between">
-        <label className="text-sm font-medium text-slate-700">{label}</label>
+        {label ? (
+          <label className="text-sm font-medium text-slate-700">{label}</label>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-1">
           <input
             type="number"
