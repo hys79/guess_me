@@ -20,6 +20,13 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let currentVolume = 0.7;
 
+/** 효과음 기본 출력을 슬라이더 값 대비 1.5배 키운다. (슬라이더는 "상대적 크기") */
+const SFX_GAIN_SCALE = 1.5;
+
+function effectiveGain() {
+  return currentVolume * SFX_GAIN_SCALE;
+}
+
 function ensureContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const AC =
@@ -31,7 +38,7 @@ function ensureContext(): AudioContext | null {
   if (!ctx) {
     ctx = new AC();
     master = ctx.createGain();
-    master.gain.value = currentVolume;
+    master.gain.value = effectiveGain();
     master.connect(ctx.destination);
   }
   if (ctx.state === "suspended") void ctx.resume();
@@ -42,7 +49,7 @@ function ensureContext(): AudioContext | null {
 export function setSfxVolume(v: number) {
   currentVolume = Math.max(0, Math.min(1, v));
   if (master && ctx) {
-    master.gain.setTargetAtTime(currentVolume, ctx.currentTime, 0.02);
+    master.gain.setTargetAtTime(effectiveGain(), ctx.currentTime, 0.02);
   }
 }
 

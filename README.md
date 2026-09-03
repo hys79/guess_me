@@ -48,26 +48,28 @@ npm install
 ### 1-3. 데이터베이스 스키마 적용
 
 좌측 **SQL Editor** 에서 `supabase/migrations/` 안의 파일을 **번호 순서대로** 붙여넣고 각각 **Run**.
-네 파일 모두 여러 번 실행해도 안전하다(idempotent).
+모든 파일이 여러 번 실행해도 안전하다(idempotent).
 
 | 파일 | 내용 |
 | --- | --- |
 | `0001_initial_schema.sql` | 테이블(rooms/players/questions_bank/rounds/answers) · ENUM · RLS · Realtime publication |
 | `0002_room_code_helper.sql` | 4자리 방 코드 생성 함수 `gen_room_code()` |
-| `0003_pick_random_question.sql` | 무작위 질문 RPC `pick_random_question()` |
+| `0003_pick_random_question.sql` | 무작위 질문 RPC `pick_random_question()` (현재는 폴백용) |
 | `0004_round_lifecycle.sql` | 라운드 전환 RPC `advance_to_scoring` / `finalize_round` / `promote_host` |
+| `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
 
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
 >   현재 `0001` 은 이런 상황을 스스로 건너뛰므로 그냥 다시 실행하면 된다.
 >   완전히 초기화하려면 `0001` 상단 주석의 `drop` 4줄을 풀어 먼저 실행한다.
 
-### 1-4. 기본 질문 채우기
+### 1-4. 질문 목록
 
-둘 중 하나:
+랜덤 질문은 앱에 번들되는 [`public/questions.csv`](public/questions.csv) 를 **실행 시점에 직접 읽는다.**
+따라서 이 파일만 수정해서 커밋/재배포하면 질문이 바로 반영된다. 별도 DB 작업이 필요 없다.
 
-- **SQL Editor** 에 [`supabase/seed.sql`](supabase/seed.sql) 붙여넣고 Run (권장 — 배포 환경에서도 동일)
-- 또는 로컬에서 스크립트 실행: 아래 `.env.local` 설정 후 `npm run import:questions` ([`public/questions.csv`](public/questions.csv) 를 읽어 upsert)
+- 형식: 첫 줄 헤더 `question`, 이후 한 줄에 "방장 닉네임 뒤에 붙일 문장" 하나. 반드시 **UTF-8** 로 저장(현재 파일은 BOM 포함).
+- `questions_bank` 테이블 / `seed.sql` / `npm run import:questions` 는 폴백(CSV 로드 실패 시)용으로만 남겨둔 레거시다. 꼭 채우지 않아도 된다.
 
 ### 1-5. 환경변수 파일
 
@@ -108,7 +110,7 @@ npm run dev
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → **service_role secret** | `npm run import:questions` 스크립트 전용 | ✅(질문 임포트 시) | ❌ 불필요 |
 
 - `NEXT_PUBLIC_` 접두어가 붙은 값은 클라이언트 번들에 포함된다. `anon` 키는 원래 공개용이라 문제없다.
-- `SUPABASE_SERVICE_ROLE_KEY` 는 RLS 를 우회하는 강력한 키다. **Vercel 에는 넣지 않는다.** 시드는 `supabase/seed.sql` 로 처리하면 된다.
+- `SUPABASE_SERVICE_ROLE_KEY` 는 RLS 를 우회하는 강력한 키다. **Vercel 에는 넣지 않는다.** (질문은 CSV 에서 읽으므로 배포에 이 키가 필요 없다.)
 - Vercel 에 넣을 값은 결국 **2개**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 
 ---
@@ -137,7 +139,8 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-4** 를 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션 5개 + `supabase/seed.sql` 을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0005`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+질문 목록은 CSV 에서 읽으므로 `seed.sql` 은 실행하지 않아도 된다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
 
@@ -167,7 +170,7 @@ Import 화면의 **Environment Variables** 섹션(또는 배포 후 **Project �
 
 - **Realtime 동작**: 두 창에서 답변/채점이 즉시 반영되는지. 안 되면 Supabase 대시보드 **Database → Replication** 에서 `supabase_realtime` publication 에 `rooms`, `players`, `rounds`, `answers` 가 포함됐는지 확인(마이그레이션 `0001` 이 처리함).
 - **환경변수 반영**: 값을 배포 후에 바꿨다면 Vercel 에서 **Redeploy** 해야 적용된다.
-- **질문 없음 오류**: "랜덤 질문" 이 실패하면 `supabase/seed.sql` 을 실행하지 않은 것.
+- **질문 목록 수정**: [`public/questions.csv`](public/questions.csv) 를 고치고 `git push` 하면 재배포되어 바로 반영된다. (DB 작업 불필요)
 
 ### 3-7. 이후 업데이트
 

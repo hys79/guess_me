@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase/client";
 import { GameError } from "@/lib/rooms";
+import { pickRandomQuestionSuffix } from "@/lib/questions";
 import type { Round } from "@/lib/supabase/database.types";
 
 interface NewRoundBase {
@@ -44,18 +45,23 @@ async function insertRound(
 }
 
 /**
- * "랜덤 질문": questions_bank 에서 무작위 문장을 뽑아
+ * "랜덤 질문": public/questions.csv 에서 무작위 문장을 뽑아
  * "{방장 닉네임}" + 문장 을 조합해 라운드를 만든다.
+ * (CSV 수정 후 재배포하면 바로 반영됨 — Supabase 설정 불필요)
  */
 export async function createRandomRound(
   input: NewRoundBase & { hostNickname: string },
 ): Promise<Round> {
-  const { data: suffix, error } = await supabase.rpc("pick_random_question");
-  if (error) throw new GameError(error.message);
+  let suffix: string | null = null;
+  try {
+    suffix = await pickRandomQuestionSuffix();
+  } catch {
+    // CSV 로드 실패 시 questions_bank RPC 로 폴백
+    const { data } = await supabase.rpc("pick_random_question");
+    suffix = data ?? null;
+  }
   if (!suffix) {
-    throw new GameError(
-      "등록된 질문이 없습니다. `npm run import:questions` 를 먼저 실행하세요.",
-    );
+    throw new GameError("질문 목록을 불러오지 못했습니다.");
   }
   const question = `${input.hostNickname}${suffix}`;
   return insertRound(input.roomId, input.hostPlayerId, question);

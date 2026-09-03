@@ -4,8 +4,8 @@ import { SoundProvider } from "@/lib/audio/SoundProvider";
 import { SettingsButton } from "@/components/audio/SettingsButton";
 
 export const metadata: Metadata = {
-  title: "guess me",
-  description: "닉네임 기반 실시간 추측 게임",
+  title: "Guess Me!",
+  description: "나를 가장 잘 아는 사람은 누구?",
 };
 
 export const viewport: Viewport = {

@@ -87,7 +87,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </div>
 
         <div className="space-y-5">
-          <label className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-700">
               전체 음소거
             </span>
@@ -95,18 +95,19 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               type="button"
               role="switch"
               aria-checked={sound.muted}
+              aria-label="전체 음소거"
               onClick={() => sound.setMuted(!sound.muted)}
-              className={`relative h-6 w-11 rounded-full transition-colors ${
-                sound.muted ? "bg-slate-300" : "bg-primary-600"
+              className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 ${
+                sound.muted ? "bg-primary-600" : "bg-slate-300"
               }`}
             >
               <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                  sound.muted ? "translate-x-0.5" : "translate-x-[22px]"
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 ${
+                  sound.muted ? "translate-x-[1.375rem]" : "translate-x-0.5"
                 }`}
               />
             </button>
-          </label>
+          </div>
 
           <VolumeRow
             label="배경음악"

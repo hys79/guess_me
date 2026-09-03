@@ -36,6 +36,3 @@ pnpm-debug.log*
 # editor
 .vscode/
 .idea/
-
-# 사용자가 직접 추가하는 배경음악 (원하면 이 줄을 지우고 커밋해도 됨)
-/public/audio/bgm.mp3
