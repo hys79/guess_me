@@ -59,6 +59,7 @@ npm install
 | `0004_round_lifecycle.sql` | 라운드 전환 RPC `advance_to_scoring` / `finalize_round` / `promote_host` |
 | `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
 | `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 빈 답변에 -1 페널티 (`advance_to_scoring` 갱신) |
+| `0007_fix_answer_time_limit_check.sql` | `rooms.answer_time_limit` CHECK 범위 보정(5~60 → 5~100). 61초 이상 설정 시 나던 제약 위반 해결 |
 
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
@@ -141,7 +142,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-4** 를 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0006`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0007`)을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문 목록은 CSV 에서 읽으므로 `seed.sql` 은 실행하지 않아도 된다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -191,7 +192,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0006 스키마 · RPC (idempotent)
+  migrations/              0001~0007 스키마 · RPC (idempotent)
   seed.sql                 questions_bank 시드
 src/
   app/
@@ -201,9 +202,10 @@ src/
     room/[code]/page.tsx   대기실 + 게임 진행 (단계별 화면 분기)
   components/
     room/                  QuestionDisplay · CountdownTimer · AnswerInput · AnswerProgress
-                           · ScoringPanel · RevealPanel · Scoreboard · NextRoundControls
-                           · HostQuestionPanel
+                           · AnswersReadonly · ScoringPanel · RevealPanel · Scoreboard
+                           · NextRoundControls · HostQuestionPanel
     audio/                 SettingsButton · SettingsDialog
+    ui/                    ConfirmDialog
     RangeField.tsx
   hooks/
     useRealtimeTable.ts    한 테이블(필터) 실시간 구독 제네릭 훅

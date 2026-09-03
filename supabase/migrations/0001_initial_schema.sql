@@ -105,6 +105,13 @@ create table if not exists public.answers (
 
 create index if not exists answers_round_id_idx on public.answers (round_id);
 
+-- -----------------------------------------------------------------------------
+-- 이미 만들어진 테이블의 제약을 최신 정의로 맞춘다 (재실행 시 자가 보정)
+-- -----------------------------------------------------------------------------
+alter table public.rooms drop constraint if exists rooms_answer_time_limit_check;
+alter table public.rooms add constraint rooms_answer_time_limit_check
+  check (answer_time_limit between 5 and 100);
+
 -- =============================================================================
 -- RLS
 -- 인증이 없으므로 anon 키로 모든 접근이 이루어진다. 파티 게임 특성상

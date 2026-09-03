@@ -19,6 +19,7 @@ import { ScoringPanel } from "@/components/room/ScoringPanel";
 import { RevealPanel } from "@/components/room/RevealPanel";
 import { Scoreboard } from "@/components/room/Scoreboard";
 import { NextRoundControls } from "@/components/room/NextRoundControls";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function RoomPage() {
   const router = useRouter();
@@ -137,6 +138,12 @@ export default function RoomPage() {
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  // 수집 단계가 아니게 되면 확인 팝업은 닫는다
+  useEffect(() => {
+    if (!round || round.status !== "collecting") setConfirmClose(false);
+  }, [round]);
 
   async function handleCopy() {
     try {
@@ -224,20 +231,23 @@ export default function RoomPage() {
       responders.length > 0 && responders.every((p) => answeredIds.has(p.id));
     const someoneEditing = roundAnswers.some((a) => a.is_editing);
 
+    const runManualClose = () => {
+      if (!round || round.status !== "collecting") return;
+      advanceSigRef.current = `${round.id}:manual`;
+      void advanceToScoring(round.id).catch(() => {
+        advanceSigRef.current = "";
+      });
+    };
+
     // 방장이 "답변 마감하고 채점 시작" 을 눌렀을 때
     const handleManualClose = () => {
       if (!round || round.status !== "collecting") return;
       play("click");
       if (!allAnswered || someoneEditing) {
-        const ok = window.confirm(
-          "아직 모든 참여자가 답변을 작성하지 않았습니다!\n그래도 채점을 시작할까요?",
-        );
-        if (!ok) return;
+        setConfirmClose(true); // 확인 팝업으로
+        return;
       }
-      advanceSigRef.current = `${round.id}:manual`;
-      void advanceToScoring(round.id).catch(() => {
-        advanceSigRef.current = "";
-      });
+      runManualClose();
     };
 
     return (
@@ -350,6 +360,20 @@ export default function RoomPage() {
         >
           방 나가기
         </button>
+
+        <ConfirmDialog
+          open={confirmClose}
+          title="아직 답변이 다 안 왔어요"
+          message={"모든 참여자가 답변을 작성하지 않았습니다.\n그래도 채점을 시작할까요?"}
+          confirmLabel="채점 시작"
+          cancelLabel="조금 더 기다리기"
+          onConfirm={() => {
+            setConfirmClose(false);
+            play("click");
+            runManualClose();
+          }}
+          onClose={() => setConfirmClose(false)}
+        />
       </main>
     );
   }
