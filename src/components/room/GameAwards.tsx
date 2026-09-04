@@ -13,7 +13,7 @@ export function GameAwards({ awards }: GameAwardsProps) {
   return (
     <div className="card animate-fade-in-up space-y-3">
       <p className="text-sm font-semibold text-slate-700">
-        🏆 이번 게임 리액션 어워드
+        🏆 가장 인상 깊었던 답변들
       </p>
       <ul className="space-y-2">
         {awards.map((a, idx) => (
@@ -34,11 +34,11 @@ export function GameAwards({ awards }: GameAwardsProps) {
               </span>
             </div>
             <p className="text-xs text-slate-500">
-              질문 ·{" "}
+              {" "}
               <span className="font-medium text-slate-600">
                 {a.askerNickname}
               </span>
-              님: &ldquo;{a.questionText}&rdquo;
+              : &ldquo;{a.questionText}&rdquo;
             </p>
             <p className="mt-1 text-sm text-slate-700">
               <span className="font-semibold text-primary-700">
