@@ -10,6 +10,12 @@
 --  - "왕 모드" 는 기존과 동일: 질문자 = 방장, target_score 도달 시 수동 승격.
 --  - "다같이 모드" 는 질문자가 매 라운드 참가 순서(created_at)대로 돌아가며,
 --    target_score 도달자가 나오면 즉시 게임을 종료(status='finished')한다.
+--
+-- 참고: 이 파일은 이전의 0008_host_handoff_and_leave.sql 이 하던 일(방장 교체 시
+-- 점수 초기화, 방장 탈주 시 자동 승계)을 완전히 대체한다 — promote_host 를 다시
+-- create or replace 하고, handle_player_leave 트리거가 옛 트리거/함수를 직접
+-- drop 한 뒤 새로 만든다. 그래서 0008 파일은 삭제했고, 0007 다음이 바로 0009다
+-- (번호 결번은 의도된 것 — 0008 이 0009 에 통합됐다).
 -- (여러 번 실행해도 안전)
 -- =============================================================================
 
@@ -26,6 +32,10 @@ alter table public.rooms add column if not exists current_questioner_id uuid;
 alter table public.rooms add column if not exists winner_player_id uuid;
 
 -- 답변 점수 범위: 👍(1) / 👎(0) 두 가지만 허용
+-- 이전(3단계 채점) 시절에 만들어진 -1(별로) 행이 남아 있으면 새 제약을 걸 수
+-- 없으므로, 그런 기존 행은 동일한 의미의 새 최저값인 0(👎)으로 먼저 옮겨준다.
+update public.answers set score = 0 where score = -1;
+
 alter table public.answers drop constraint if exists answers_score_check;
 alter table public.answers add constraint answers_score_check check (score in (0, 1));
 

@@ -40,6 +40,7 @@ export function GameFinished({
       setError(
         err instanceof GameError ? err.message : "재시작에 실패했습니다.",
       );
+    } finally {
       setBusy(false);
     }
   }

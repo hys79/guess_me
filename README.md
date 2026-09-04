@@ -67,14 +67,17 @@ npm install
 | `0003_pick_random_question.sql` | 무작위 질문 RPC `pick_random_question()` (현재는 폴백용) |
 | `0004_round_lifecycle.sql` | 라운드 전환 RPC `advance_to_scoring` / `finalize_round` / `promote_host` |
 | `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
-| `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 빈 답변에 -1 페널티 (`advance_to_scoring` 갱신) |
+| `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 시 미제출 답변 자동 채점 (`advance_to_scoring` 갱신) |
 | `0007_fix_answer_time_limit_check.sql` | `rooms.answer_time_limit` CHECK 범위 보정(5~60 → 5~100). 61초 이상 설정 시 나던 제약 위반 해결 |
-| `0008_host_handoff_and_leave.sql` | 방장 교체 시 누적 점수 전원 0 초기화 (`promote_host`) · 방장 탈주 시 최고 점수자 자동 승계 트리거 |
-| `0009_game_modes_and_binary_scoring.sql` | 게임 모드(`game_mode`) · 질문자 순환(`current_questioner_id`) · 우승자(`winner_player_id`) 추가. 채점을 👍(1)/👎(0) 이분화, `next_questioner` / `restart_everyone_game` RPC, 탈주 트리거를 질문자 승계까지 확장 |
+| `0009_game_modes_and_binary_scoring.sql` | 게임 모드(`game_mode`) · 질문자 순환(`current_questioner_id`) · 우승자(`winner_player_id`) 추가. 채점을 👍(1)/👎(0) 이분화, `next_questioner` / `restart_everyone_game` RPC, 방장 교체·탈주 승계 트리거(`handle_player_leave`) |
+| `0010_reset_rounds_on_new_game.sql` | `promote_host` / `restart_everyone_game` 이 새 게임 시작 시 이전 라운드를 삭제하도록 갱신. (버그 수정: 다같이 모드 "다시 시작" 후 이전 게임의 공개 화면이 남아 멈춘 것처럼 보이던 문제) |
 
+> - 번호가 `0008` 에서 `0009` 로 건너뛴다 — 방장 교체/탈주 승계를 다루던 옛 `0008` 은 `0009` 에 완전히 통합되어 파일을 삭제했다. 순서대로 실행하면 문제없다.
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
 >   현재 `0001` 은 이런 상황을 스스로 건너뛰므로 그냥 다시 실행하면 된다.
+> - SQL Editor 는 붙여넣은 스크립트 전체를 한 트랜잭션으로 실행한다. 중간에 하나라도
+>   에러가 나면 그 실행분은 전부 롤백되니, 에러를 고친 뒤 **같은 파일 전체를 다시** 붙여넣고 재실행하면 된다.
 >   완전히 초기화하려면 `0001` 상단 주석의 `drop` 4줄을 풀어 먼저 실행한다.
 
 ### 1-4. 질문 목록
@@ -150,7 +153,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0009`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0010`)을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -200,7 +203,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0009 스키마 · RPC · 트리거 (idempotent)
+  migrations/              0001~0010 스키마 · RPC · 트리거 (idempotent)
 src/
   app/
     page.tsx               랜딩

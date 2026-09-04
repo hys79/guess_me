@@ -213,8 +213,12 @@ export default function RoomPage() {
     setError(null);
     try {
       await startGame(roomId);
+      // 성공 시 room.status 가 'waiting' 을 벗어나면서 이 화면 자체가
+      // 사라지므로 starting 을 여기서 되돌릴 필요는 없지만, 실시간 반영이
+      // 늦어지는 경우까지 대비해 항상 finally 에서 정리한다.
     } catch (err) {
       setError(err instanceof GameError ? err.message : "시작에 실패했습니다.");
+    } finally {
       setStarting(false);
     }
   }
@@ -273,6 +277,12 @@ export default function RoomPage() {
         >
           방 나가기
         </button>
+
+        <TurnNotice
+          open={turnNoticeOpen}
+          nickname={stored.nickname}
+          onClose={() => setTurnNoticeOpen(false)}
+        />
       </main>
     );
   }
@@ -583,6 +593,12 @@ export default function RoomPage() {
       >
         방 나가기
       </button>
+
+      <TurnNotice
+        open={turnNoticeOpen}
+        nickname={stored.nickname}
+        onClose={() => setTurnNoticeOpen(false)}
+      />
     </main>
   );
 }
