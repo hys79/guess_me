@@ -7,6 +7,8 @@ interface ScoreboardProps {
   players: Player[];
   targetScore: number;
   mePlayerId: string;
+  /** 현재 질문자 player id (표시되면 🎤 배지). 왕 모드에서는 항상 방장과 같다. */
+  questionerId?: string | null;
 }
 
 interface Delta {
@@ -19,6 +21,7 @@ export function Scoreboard({
   players,
   targetScore,
   mePlayerId,
+  questionerId = null,
 }: ScoreboardProps) {
   const prevScores = useRef<Map<string, number>>(new Map());
   const [deltas, setDeltas] = useState<Record<string, Delta>>({});
@@ -80,7 +83,12 @@ export function Scoreboard({
               }`}
             >
               <span className="flex items-center gap-1 text-slate-700">
-                {p.is_host ? <span aria-hidden>👑</span> : null}
+                {p.is_host ? <span aria-hidden title="방장">👑</span> : null}
+                {questionerId && p.id === questionerId ? (
+                  <span aria-hidden title="현재 질문자">
+                    🎤
+                  </span>
+                ) : null}
                 <span className="font-medium">{p.nickname}</span>
                 {p.id === mePlayerId ? (
                   <span className="text-slate-400"> (나)</span>

@@ -5,25 +5,27 @@ import { createRandomRound, createCustomRound } from "@/lib/rounds";
 import { GameError } from "@/lib/rooms";
 import { useSound } from "@/lib/audio/SoundProvider";
 
-interface HostQuestionPanelProps {
+interface QuestionerPanelProps {
   roomId: string;
-  hostPlayerId: string;
-  hostNickname: string;
+  /** 현재 질문자(답변 대상) player id */
+  questionerId: string;
+  questionerNickname: string;
   /** 라운드 생성 성공 후 콜백 (선택) */
   onCreated?: () => void;
 }
 
 /**
- * 방장 전용. 두 가지로 라운드를 시작한다.
+ * 현재 질문자(왕 모드: 방장 고정 / 다같이 모드: 매 라운드 회전) 전용.
+ * 두 가지로 라운드를 시작한다.
  *  1) 랜덤 질문   — public/questions.csv 에서 뽑아 "{닉네임}" + 문장 조합
  *  2) 직접 입력   — 자유 형식 질문 그대로
  */
-export function HostQuestionPanel({
+export function QuestionerPanel({
   roomId,
-  hostPlayerId,
-  hostNickname,
+  questionerId,
+  questionerNickname,
   onCreated,
-}: HostQuestionPanelProps) {
+}: QuestionerPanelProps) {
   const { play } = useSound();
   const [custom, setCustom] = useState("");
   const [busy, setBusy] = useState<null | "random" | "custom">(null);
@@ -54,12 +56,16 @@ export function HostQuestionPanel({
     <div className="card space-y-5">
       <div>
         <p className="mb-2 text-sm font-semibold text-slate-700">
-          질문 보내기 (방장)
+          질문 보내기
         </p>
         <button
           onClick={() =>
             run("random", () =>
-              createRandomRound({ roomId, hostPlayerId, hostNickname }),
+              createRandomRound({
+                roomId,
+                questionerId,
+                questionerNickname,
+              }),
             )
           }
           disabled={busy !== null}
@@ -68,7 +74,7 @@ export function HostQuestionPanel({
           {busy === "random" ? "뽑는 중..." : "🎲 랜덤 질문"}
         </button>
         <p className="mt-1 text-xs text-slate-400">
-          예: {hostNickname}님이 가장 좋아하는 노래는 무엇인가요?
+          예: {questionerNickname}님이 가장 좋아하는 노래는 무엇인가요?
         </p>
       </div>
 
@@ -84,7 +90,7 @@ export function HostQuestionPanel({
           void run("custom", () =>
             createCustomRound({
               roomId,
-              hostPlayerId,
+              questionerId,
               questionText: custom,
             }),
           );

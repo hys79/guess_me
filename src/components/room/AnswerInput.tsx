@@ -90,7 +90,7 @@ export function AnswerInput({
   if (locked && !myAnswer) {
     return (
       <div className="card text-center text-sm text-slate-500">
-        답변을 제출하지 못했습니다. (시간 종료 · -1점)
+        답변을 제출하지 못했습니다. (시간 종료 · 👎 처리)
       </div>
     );
   }

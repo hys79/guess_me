@@ -8,10 +8,9 @@ interface RevealPanelProps {
   players: Player[];
 }
 
-const BADGE: Record<string, { cls: string; emoji: string }> = {
-  "1": { cls: "bg-primary-100 text-primary-700", emoji: "🙂" },
-  "0": { cls: "bg-slate-100 text-slate-500", emoji: "🤔" },
-  "-1": { cls: "bg-red-100 text-red-600", emoji: "😠" },
+const BADGE: Record<string, { cls: string; emoji: string; label: string }> = {
+  "1": { cls: "bg-primary-100 text-primary-700", emoji: "👍", label: "좋아요" },
+  "0": { cls: "bg-slate-100 text-slate-500", emoji: "👎", label: "별로예요" },
 };
 
 /** 공개 단계: 누가 어떤 답변을 썼고 몇 점을 받았는지 한 번에. 점수 내림차순. 접을 수 있다(기본 펼침). */
@@ -73,8 +72,7 @@ export function RevealPanel({ answers, players }: RevealPanelProps) {
                 }`}
               >
                 <span aria-hidden>{BADGE[String(a.score ?? 0)].emoji}</span>
-                {(a.score ?? 0) > 0 ? "+" : ""}
-                {a.score ?? 0}
+                {BADGE[String(a.score ?? 0)].label}
               </span>
             </div>
             <p className="whitespace-pre-wrap text-sm text-slate-700">

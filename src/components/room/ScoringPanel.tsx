@@ -16,9 +16,8 @@ const OPTIONS: {
   emoji: string;
   label: string;
 }[] = [
-  { value: 1, emoji: "🙂", label: "좋아요" },
-  { value: 0, emoji: "🤔", label: "글쎄요" },
-  { value: -1, emoji: "😠", label: "별로예요" },
+  { value: 1, emoji: "👍", label: "좋아요" },
+  { value: 0, emoji: "👎", label: "별로예요" },
 ];
 
 /**
@@ -38,7 +37,7 @@ export function ScoringPanel({ roundId, answers }: ScoringPanelProps) {
 
   async function handleScore(answerId: string, score: AnswerScore) {
     setPending(answerId + score);
-    play(score > 0 ? "scorePlus" : score < 0 ? "scoreMinus" : "scoreZero");
+    play(score > 0 ? "scorePlus" : "scoreMinus");
     try {
       await scoreAnswer({ answerId, score });
     } finally {

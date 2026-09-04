@@ -6,21 +6,26 @@ import Link from "next/link";
 import { RangeField } from "@/components/RangeField";
 import { useSound } from "@/lib/audio/SoundProvider";
 import { createRoom, GameError } from "@/lib/rooms";
+import type { RoomMode } from "@/lib/supabase/database.types";
 import {
   ANSWER_TIME_LIMIT_DEFAULT,
   ANSWER_TIME_LIMIT_MAX,
   ANSWER_TIME_LIMIT_MIN,
+  GAME_MODE_INFO,
   NICKNAME_MAX_LENGTH,
   TARGET_SCORE_DEFAULT,
   TARGET_SCORE_MAX,
   TARGET_SCORE_MIN,
 } from "@/lib/constants";
 
+const MODE_ORDER: RoomMode[] = ["king", "everyone"];
+
 export default function CreateRoomPage() {
   const router = useRouter();
   const { play } = useSound();
 
   const [nickname, setNickname] = useState("");
+  const [gameMode, setGameMode] = useState<RoomMode>("king");
   const [targetScore, setTargetScore] = useState(TARGET_SCORE_DEFAULT);
   const [timeLimit, setTimeLimit] = useState(
     ANSWER_TIME_LIMIT_DEFAULT ?? 30,
@@ -42,6 +47,7 @@ export default function CreateRoomPage() {
         hostNickname: nickname,
         targetScore,
         answerTimeLimit: unlimited ? null : timeLimit,
+        gameMode,
       });
       play("submit");
       router.push(`/room/${room.code}`);
@@ -79,6 +85,39 @@ export default function CreateRoomPage() {
             onChange={(e) => setNickname(e.target.value)}
             autoFocus
           />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-slate-700">
+            게임 모드
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {MODE_ORDER.map((mode) => {
+              const info = GAME_MODE_INFO[mode];
+              const active = gameMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setGameMode(mode)}
+                  aria-pressed={active}
+                  className={
+                    active
+                      ? "rounded-xl border-2 border-primary-500 bg-primary-50 p-3 text-left shadow-sm"
+                      : "rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition-colors hover:border-primary-200"
+                  }
+                >
+                  <span className="text-xl">{info.emoji}</span>
+                  <p className="mt-1 text-sm font-bold text-slate-800">
+                    {info.label}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            {GAME_MODE_INFO[gameMode].description}
+          </p>
         </div>
 
         <RangeField

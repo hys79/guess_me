@@ -3,7 +3,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { setStoredPlayer, clearStoredPlayer } from "@/lib/player";
 import { NICKNAME_MAX_LENGTH } from "@/lib/constants";
-import type { Player, Room } from "@/lib/supabase/database.types";
+import type { Player, Room, RoomMode } from "@/lib/supabase/database.types";
 
 export class GameError extends Error {}
 
@@ -21,6 +21,7 @@ interface CreateRoomInput {
   targetScore: number;
   /** null = 무제한 */
   answerTimeLimit: number | null;
+  gameMode: RoomMode;
 }
 
 /** 방을 만들고 방장 플레이어를 등록한 뒤 localStorage 에 저장한다. */
@@ -36,6 +37,7 @@ export async function createRoom(
       host_nickname: nickname,
       target_score: input.targetScore,
       answer_time_limit: input.answerTimeLimit,
+      game_mode: input.gameMode,
       status: "waiting",
     })
     .select("*")

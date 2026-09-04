@@ -1,23 +1,31 @@
 # Guess Me!
 
 "나를 가장 잘 아는 사람은 누구?" — 닉네임 기반 실시간 추측 게임.
-방장이 자신에 대한 질문을 던지면, 나머지 참가자들이 답을 적고,
-방장이 익명으로 채점한 뒤 결과를 함께 공개한다. 목표 점수에 먼저 도달한 사람이 다음 방장이 된다.
+질문자가 자신에 대한 질문을 던지면, 나머지 참가자들이 답을 적고,
+질문자가 익명으로 채점한 뒤 결과를 함께 공개한다.
 
 - **프레임워크**: Next.js 15 (App Router) · React 19 · TypeScript
-- **스타일**: Tailwind CSS 3 — 흰 배경 + 파란색(`#2563eb`) 포인트
+- **스타일**: Tailwind CSS 3 — 흰 배경 + 파란색(`#2563eb`) 포인트, 은은한 그라데이션/그림자
 - **백엔드**: Supabase (Postgres + Realtime). 인증은 사용하지 않고, 플레이어는 `localStorage` 의 `player_id` 로 식별
 - **사운드**: 효과음은 Web Audio API 합성(외부 파일 없음), 배경음악만 mp3 파일 사용
 
+## 게임 모드
+
+방을 만들 때 둘 중 하나를 고른다.
+
+- **👑 왕 모드** — 방장이 계속 질문자. 목표 점수에 도달한 사람이 나오면 그 사람이 새 방장이 되고(수동 확인), 모두의 누적 점수가 초기화된 뒤 대기실로 돌아간다. (기존 방식과 동일)
+- **🔄 다같이 모드** — 참가 순서(방장부터, 참가한 순서대로)를 돌아가며 모두가 질문자가 된다. 내 차례가 되면 알림 팝업 + 효과음으로 알려준다. 목표 점수 도달자가 나오면 그 자리에서 **게임 종료(우승 화면)**, "다시 시작"을 누르면 점수가 초기화되고 **직전 우승자부터** 다시 순서가 돈다.
+
+두 모드 모두 질문자가 방을 나가면 다음 사람에게 자동으로 넘어간다(왕 모드는 최고 점수자, 다같이 모드는 순서상 다음 사람).
+
 ## 주요 기능
 
-- 방 생성(닉네임 · 목표 점수 1~20 · 답변 제한시간 5~100초 또는 무제한) → 4자리 참가 코드 발급
+- 방 생성(닉네임 · 게임 모드 · 목표 점수 1~20 · 답변 제한시간 5~100초 또는 무제한) → 4자리 참가 코드 발급
 - 참가 코드 + 닉네임으로 입장 (같은 방 내 닉네임 중복 방지). **진행 중인 게임에도 언제든 코드로 합류 가능**
 - 대기실: 참가자 실시간 표시, 방장만 게임 시작(최소 2명)
-- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(🙂 / 🤔 / 😠) → 결과 공개(접기/펼치기) → 방장 교체**
-- 목표 점수 도달 시 그 사람이 새 방장이 되고 **누적 점수 전원 초기화**. 방장이 나가면 남은 사람 중 최고 점수(동점 랜덤)가 자동 승계
-- 시간 초과로 미제출 시 빈 답변 -1점 페널티, 수정 중에는 시간이 남아 있으면 자동 마감 안 됨
-- 제한시간 카운트다운(마지막 5초 강조), 답변 현황판, 상시 누적 점수판(점수 변동 애니메이션)
+- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(👍 좋아요 / 👎 별로예요) → 결과 공개(접기/펼치기) → 다음 질문자**
+- 시간 초과로 미제출 시 빈 답변은 👎(0점) 처리, 수정 중에는 시간이 남아 있으면 자동 마감 안 됨
+- 제한시간 카운트다운(마지막 5초 강조), 답변 현황판, 상시 누적 점수판(현재 질문자 🎤 표시, 점수 변동 애니메이션)
 - Supabase Realtime 으로 모든 참가자 화면이 즉시 동기화
 - 사운드 설정 팝업(전체 음소거 · 배경음악/효과음 볼륨)
 
@@ -62,6 +70,7 @@ npm install
 | `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 빈 답변에 -1 페널티 (`advance_to_scoring` 갱신) |
 | `0007_fix_answer_time_limit_check.sql` | `rooms.answer_time_limit` CHECK 범위 보정(5~60 → 5~100). 61초 이상 설정 시 나던 제약 위반 해결 |
 | `0008_host_handoff_and_leave.sql` | 방장 교체 시 누적 점수 전원 0 초기화 (`promote_host`) · 방장 탈주 시 최고 점수자 자동 승계 트리거 |
+| `0009_game_modes_and_binary_scoring.sql` | 게임 모드(`game_mode`) · 질문자 순환(`current_questioner_id`) · 우승자(`winner_player_id`) 추가. 채점을 👍(1)/👎(0) 이분화, `next_questioner` / `restart_everyone_game` RPC, 탈주 트리거를 질문자 승계까지 확장 |
 
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
@@ -141,7 +150,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0008`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0009`)을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -191,7 +200,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0008 스키마 · RPC · 트리거 (idempotent)
+  migrations/              0001~0009 스키마 · RPC · 트리거 (idempotent)
 src/
   app/
     page.tsx               랜딩
@@ -201,7 +210,7 @@ src/
   components/
     room/                  QuestionDisplay · CountdownTimer · AnswerInput · AnswerProgress
                            · AnswersReadonly · ScoringPanel · RevealPanel · Scoreboard
-                           · NextRoundControls · HostQuestionPanel
+                           · NextRoundControls · QuestionerPanel · GameFinished · TurnNotice
     audio/                 SettingsButton · SettingsDialog
     ui/                    ConfirmDialog
     RangeField.tsx
@@ -220,10 +229,10 @@ src/
 
 ## 데이터 모델
 
-- **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`)
-- **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 당 1명)
-- **rounds** — `room_id` · `question_text` · `target_player_id`(방장) · `status`(`collecting`/`scoring`/`revealed`)
-- **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 🙂 / `0` 🤔 / `-1` 😠) · `is_editing`. `(round_id, player_id)` 유일
+- **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`) · `game_mode`(`king`/`everyone`) · `current_questioner_id`(현재 질문자, 소프트 참조) · `winner_player_id`(다같이 모드 우승자, 소프트 참조)
+- **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 관리자, 방 당 1명)
+- **rounds** — `room_id` · `question_text` · `target_player_id`(이 라운드의 질문자) · `status`(`collecting`/`scoring`/`revealed`)
+- **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 👍 좋아요 / `0` 👎 별로예요) · `is_editing`. `(round_id, player_id)` 유일
 - **questions_bank** — (레거시) 초기 마이그레이션에만 존재, 앱 미사용
 
 라운드 전환은 모두 Postgres RPC 안에서 라운드 row 를 `FOR UPDATE` 로 잠그고 현재 상태를 확인한 뒤 수행하므로,

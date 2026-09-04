@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { promoteHost } from "@/lib/rounds";
 import { GameError } from "@/lib/rooms";
-import { HostQuestionPanel } from "./HostQuestionPanel";
+import { QuestionerPanel } from "./QuestionerPanel";
 import type { Player } from "@/lib/supabase/database.types";
 
 interface NextRoundControlsProps {
@@ -14,7 +14,7 @@ interface NextRoundControlsProps {
 }
 
 /**
- * 공개 후 방장 화면.
+ * (왕 모드 전용) 공개 후 방장 화면.
  *  - target_score 도달자(방장 제외)가 있으면 → 그 사람에게 방장을 넘기고 대기실로
  *  - 없으면 → 다음 라운드(랜덤/직접) 질문 패널
  */
@@ -76,10 +76,10 @@ export function NextRoundControls({
   }
 
   return (
-    <HostQuestionPanel
+    <QuestionerPanel
       roomId={roomId}
-      hostPlayerId={hostPlayer.id}
-      hostNickname={hostPlayer.nickname}
+      questionerId={hostPlayer.id}
+      questionerNickname={hostPlayer.nickname}
     />
   );
 }

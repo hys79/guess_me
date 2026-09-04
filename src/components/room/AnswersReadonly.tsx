@@ -36,7 +36,7 @@ export function AnswersReadonly({
             </p>
             <p className="whitespace-pre-wrap text-sm text-slate-700">
               {a.answer_text || (
-                <span className="text-slate-400">(빈 답변 · -1점)</span>
+                <span className="text-slate-400">(빈 답변)</span>
               )}
             </p>
           </li>

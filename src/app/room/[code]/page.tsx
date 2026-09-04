@@ -8,10 +8,10 @@ import { useGameState } from "@/hooks/useGameState";
 import { getStoredPlayer, type StoredPlayer } from "@/lib/player";
 import { leaveRoom, startGame, GameError } from "@/lib/rooms";
 import { advanceToScoring, finalizeRound } from "@/lib/rounds";
-import { MIN_PLAYERS_TO_START } from "@/lib/constants";
+import { MIN_PLAYERS_TO_START, GAME_MODE_INFO } from "@/lib/constants";
 import { useSound } from "@/lib/audio/SoundProvider";
 import { QuestionDisplay } from "@/components/room/QuestionDisplay";
-import { HostQuestionPanel } from "@/components/room/HostQuestionPanel";
+import { QuestionerPanel } from "@/components/room/QuestionerPanel";
 import { AnswerInput } from "@/components/room/AnswerInput";
 import { AnswerProgress } from "@/components/room/AnswerProgress";
 import { AnswersReadonly } from "@/components/room/AnswersReadonly";
@@ -19,6 +19,8 @@ import { ScoringPanel } from "@/components/room/ScoringPanel";
 import { RevealPanel } from "@/components/room/RevealPanel";
 import { Scoreboard } from "@/components/room/Scoreboard";
 import { NextRoundControls } from "@/components/room/NextRoundControls";
+import { GameFinished } from "@/components/room/GameFinished";
+import { TurnNotice } from "@/components/room/TurnNotice";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function RoomPage() {
@@ -47,7 +49,19 @@ export default function RoomPage() {
 
   const amHost = Boolean(me?.is_host);
 
-  // --- 라운드 상태 자동 전환 (방장 클라이언트가 주도, RPC 는 멱등) -----------
+  // --- 질문자(= 답변 대상) 계산 ---------------------------------------------
+  // 왕 모드: 항상 방장. 다같이 모드: rooms.current_questioner_id 가 순환시킨다.
+  // 값이 아직 없으면(게임 시작 직후 등) 방장으로 폴백한다 — 두 모드 모두 첫
+  // 질문자는 방장이므로 이 폴백은 항상 정답이다.
+  const hostPlayer = game.players.find((p) => p.is_host) ?? null;
+  const questionerId = room?.current_questioner_id ?? hostPlayer?.id ?? null;
+  const questionerPlayer =
+    game.players.find((p) => p.id === questionerId) ?? null;
+  const isQuestioner = Boolean(
+    stored && questionerId && stored.playerId === questionerId,
+  );
+
+  // --- 라운드 상태 자동 전환 (현재 질문자 클라이언트가 주도, RPC 는 멱등) ----
   // 시그니처(진행 카운트)가 바뀌면 재시도 가능 → 랙/경합에도 자가 복구된다.
   const advanceSigRef = useRef("");
   const finalizeSigRef = useRef("");
@@ -55,13 +69,13 @@ export default function RoomPage() {
   const round = game.currentRound;
 
   useEffect(() => {
-    if (!amHost || !round) return;
+    if (!isQuestioner || !round) return;
 
     // 현재 라운드 소속 답변만 (라운드 전환 직후 이전 답변이 잠깐 남는 경우 방어)
     const roundAnswers = game.answers.filter((a) => a.round_id === round.id);
 
     if (round.status === "collecting") {
-      const responders = game.players.filter((p) => !p.is_host);
+      const responders = game.players.filter((p) => p.id !== questionerId);
       if (responders.length === 0) return;
       const answered = new Set(roundAnswers.map((a) => a.player_id));
       const done = responders.filter((p) => answered.has(p.id)).length;
@@ -94,23 +108,24 @@ export default function RoomPage() {
         });
       }
     }
-  }, [amHost, round, game.players, game.answers]);
+  }, [isQuestioner, questionerId, round, game.players, game.answers]);
 
   const handleExpire = useCallback(() => {
-    if (!amHost || !round || round.status !== "collecting") return;
+    if (!isQuestioner || !round || round.status !== "collecting") return;
     const sig = `${round.id}:expire`;
     if (advanceSigRef.current === sig) return;
     advanceSigRef.current = sig;
     void advanceToScoring(round.id).catch(() => {
       advanceSigRef.current = "";
     });
-  }, [amHost, round]);
+  }, [isQuestioner, round]);
 
   // --- 사운드 트리거 ------------------------------------------------------
   const { play } = useSound();
   const roundStartRef = useRef<string | null>(null);
   const phaseRef = useRef<string | null>(null);
   const winRef = useRef<string | null>(null);
+  const finishRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (round && round.status === "collecting" && roundStartRef.current !== round.id) {
@@ -124,8 +139,10 @@ export default function RoomPage() {
     }
   }, [round, play]);
 
+  // 왕 모드: 방장 제외 누군가 목표 점수에 도달하면 승리음
   useEffect(() => {
     if (!round || round.status !== "revealed" || !room) return;
+    if (room.game_mode !== "king") return;
     const someoneWon = game.players.some(
       (p) => !p.is_host && p.score >= room.target_score,
     );
@@ -134,6 +151,41 @@ export default function RoomPage() {
       play("win");
     }
   }, [round, room, game.players, play]);
+
+  // 다같이 모드: 게임 종료(우승자 확정) 시 승리음
+  useEffect(() => {
+    if (!room || room.status !== "finished") return;
+    if (finishRef.current !== room.id) {
+      finishRef.current = room.id;
+      play("win");
+    }
+  }, [room, play]);
+
+  // 다같이 모드: 내가 새로 질문자가 되면 알림 팝업 + 사운드
+  const turnTrackRef = useRef<{ initialized: boolean; value: string | null }>({
+    initialized: false,
+    value: null,
+  });
+  const [turnNoticeOpen, setTurnNoticeOpen] = useState(false);
+  useEffect(() => {
+    if (!room || room.game_mode !== "everyone") return;
+    const cqid = room.current_questioner_id;
+    const track = turnTrackRef.current;
+
+    if (!track.initialized) {
+      track.initialized = true;
+      track.value = cqid;
+      return; // 최초 관측은 알림 없이 기록만
+    }
+
+    if (track.value !== cqid) {
+      track.value = cqid;
+      if (cqid && stored && cqid === stored.playerId) {
+        setTurnNoticeOpen(true);
+        play("yourTurn");
+      }
+    }
+  }, [room, stored, play]);
 
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -201,11 +253,33 @@ export default function RoomPage() {
 
   const isHost = amHost;
   const enoughPlayers = game.players.length >= MIN_PLAYERS_TO_START;
+  const modeInfo = GAME_MODE_INFO[room.game_mode];
+
+  // --- 게임 종료 화면 (다같이 모드, 우승자 확정) ----------------------------
+  if (room.status === "finished") {
+    return (
+      <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pb-8 pt-14 sm:px-6 sm:pt-12">
+        <GameFinished
+          roomId={room.id}
+          winnerId={room.winner_player_id}
+          players={game.players}
+          targetScore={room.target_score}
+          mePlayerId={stored.playerId}
+          canRestart={isHost}
+        />
+        <button
+          onClick={handleLeave}
+          className="mx-auto mt-2 text-xs text-slate-400 hover:text-red-500"
+        >
+          방 나가기
+        </button>
+      </main>
+    );
+  }
 
   // --- 게임 진행 화면 ------------------------------------------------------
   if (room.status !== "waiting") {
-    const hostPlayer = game.players.find((p) => p.is_host) ?? null;
-    const responders = game.players.filter((p) => !p.is_host);
+    const responders = game.players.filter((p) => p.id !== questionerId);
     // 현재 라운드 소속 답변만 사용 (라운드 전환 직후 이전 답변 잔상 방어)
     const roundAnswers = round
       ? game.answers.filter((a) => a.round_id === round.id)
@@ -239,7 +313,7 @@ export default function RoomPage() {
       });
     };
 
-    // 방장이 "답변 마감하고 채점 시작" 을 눌렀을 때
+    // 질문자가 "답변 마감하고 채점 시작" 을 눌렀을 때
     const handleManualClose = () => {
       if (!round || round.status !== "collecting") return;
       play("click");
@@ -252,11 +326,16 @@ export default function RoomPage() {
 
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pb-8 pt-14 sm:px-6 sm:pt-12">
-        <div className="flex items-center justify-between pr-10 text-xs text-slate-400">
-          <span>
+        <div className="flex items-center justify-between gap-2 pr-10 text-xs text-slate-400">
+          <span className="shrink-0">
             방 <span className="font-bold text-slate-500">{code}</span>
           </span>
-          <span className="rounded-full bg-primary-50 px-2 py-0.5 font-semibold text-primary-600">
+          {room.game_mode === "everyone" && questionerPlayer ? (
+            <span className="truncate text-slate-400">
+              🎤 {questionerPlayer.nickname}님 차례
+            </span>
+          ) : null}
+          <span className="shrink-0 rounded-full bg-primary-50 px-2 py-0.5 font-semibold text-primary-600">
             {phaseLabel}
           </span>
         </div>
@@ -271,16 +350,16 @@ export default function RoomPage() {
           />
         ) : (
           <div className="card animate-fade-in text-center text-sm text-slate-500">
-            {isHost
+            {isQuestioner
               ? "질문을 보내 첫 라운드를 시작하세요."
-              : "방장이 질문을 준비 중입니다..."}
+              : `${questionerPlayer?.nickname ?? "질문자"}님이 질문을 준비 중입니다...`}
           </div>
         )}
 
         <div key={transitionKey} className="flex animate-fade-in-up flex-col gap-4">
           {round?.status === "collecting" ? (
             <>
-              {!isHost ? (
+              {!isQuestioner ? (
                 <AnswerInput
                   roundId={round.id}
                   playerId={stored.playerId}
@@ -289,7 +368,7 @@ export default function RoomPage() {
                 />
               ) : null}
               <AnswerProgress responders={responders} answers={roundAnswers} />
-              {isHost ? (
+              {isQuestioner ? (
                 <button
                   onClick={handleManualClose}
                   className="btn-secondary w-full text-sm"
@@ -301,12 +380,12 @@ export default function RoomPage() {
           ) : null}
 
           {round?.status === "scoring" ? (
-            isHost ? (
+            isQuestioner ? (
               <ScoringPanel roundId={round.id} answers={roundAnswers} />
             ) : (
               <>
                 <div className="card text-center text-sm text-slate-500">
-                  방장이 채점 중입니다...
+                  {questionerPlayer?.nickname ?? "질문자"}님이 채점 중입니다...
                 </div>
                 <AnswersReadonly
                   answers={roundAnswers}
@@ -320,26 +399,38 @@ export default function RoomPage() {
           {round?.status === "revealed" ? (
             <>
               <RevealPanel answers={roundAnswers} players={game.players} />
-              {isHost && hostPlayer ? (
-                <NextRoundControls
+              {room.game_mode === "king" ? (
+                isQuestioner && hostPlayer ? (
+                  <NextRoundControls
+                    roomId={room.id}
+                    hostPlayer={hostPlayer}
+                    players={game.players}
+                    targetScore={room.target_score}
+                  />
+                ) : (
+                  <div className="card text-center text-sm text-slate-500">
+                    방장이 다음 라운드를 준비 중입니다...
+                  </div>
+                )
+              ) : isQuestioner && questionerPlayer ? (
+                <QuestionerPanel
                   roomId={room.id}
-                  hostPlayer={hostPlayer}
-                  players={game.players}
-                  targetScore={room.target_score}
+                  questionerId={questionerPlayer.id}
+                  questionerNickname={questionerPlayer.nickname}
                 />
               ) : (
                 <div className="card text-center text-sm text-slate-500">
-                  방장이 다음 라운드를 준비 중입니다...
+                  {questionerPlayer?.nickname ?? "다음 질문자"}님을 기다리는 중...
                 </div>
               )}
             </>
           ) : null}
 
-          {isHost && hostPlayer && !round ? (
-            <HostQuestionPanel
+          {isQuestioner && questionerPlayer && !round ? (
+            <QuestionerPanel
               roomId={room.id}
-              hostPlayerId={hostPlayer.id}
-              hostNickname={hostPlayer.nickname}
+              questionerId={questionerPlayer.id}
+              questionerNickname={questionerPlayer.nickname}
             />
           ) : null}
         </div>
@@ -348,6 +439,7 @@ export default function RoomPage() {
           players={game.players}
           targetScore={room.target_score}
           mePlayerId={stored.playerId}
+          questionerId={room.game_mode === "everyone" ? questionerId : null}
         />
 
         <button
@@ -369,6 +461,12 @@ export default function RoomPage() {
             runManualClose();
           }}
           onClose={() => setConfirmClose(false)}
+        />
+
+        <TurnNotice
+          open={turnNoticeOpen}
+          nickname={stored.nickname}
+          onClose={() => setTurnNoticeOpen(false)}
         />
       </main>
     );
@@ -393,20 +491,30 @@ export default function RoomPage() {
         </p>
       </div>
 
-      <div className="card mb-4 flex justify-around text-center text-sm">
-        <div>
-          <p className="text-slate-400">목표 점수</p>
-          <p className="text-lg font-bold text-slate-800">
-            {room.target_score}점
-          </p>
+      <div className="card mb-4 space-y-3">
+        <div className="flex items-center justify-center gap-2">
+          <span className="rounded-full bg-primary-50 px-3 py-1 text-sm font-semibold text-primary-700">
+            {modeInfo.emoji} {modeInfo.label}
+          </span>
         </div>
-        <div>
-          <p className="text-slate-400">답변 제한시간</p>
-          <p className="text-lg font-bold text-slate-800">
-            {room.answer_time_limit === null
-              ? "무제한"
-              : `${room.answer_time_limit}초`}
-          </p>
+        <p className="text-center text-xs text-slate-400">
+          {modeInfo.description}
+        </p>
+        <div className="flex justify-around border-t border-slate-100 pt-3 text-center text-sm">
+          <div>
+            <p className="text-slate-400">목표 점수</p>
+            <p className="text-lg font-bold text-slate-800">
+              {room.target_score}점
+            </p>
+          </div>
+          <div>
+            <p className="text-slate-400">답변 제한시간</p>
+            <p className="text-lg font-bold text-slate-800">
+              {room.answer_time_limit === null
+                ? "무제한"
+                : `${room.answer_time_limit}초`}
+            </p>
+          </div>
         </div>
       </div>
 

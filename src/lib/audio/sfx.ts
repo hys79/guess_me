@@ -9,12 +9,12 @@ export type SfxName =
   | "click"
   | "submit"
   | "roundStart"
-  | "scorePlus"
-  | "scoreZero"
-  | "scoreMinus"
+  | "scorePlus" // 👍 좋아요
+  | "scoreMinus" // 👎 별로예요
   | "reveal"
   | "win"
-  | "tick";
+  | "tick"
+  | "yourTurn"; // 다같이 모드: 내 차례가 됐을 때
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -143,9 +143,6 @@ export function playSfx(name: SfxName) {
         glideTo: 1174.66,
       });
       break;
-    case "scoreZero":
-      tone(context, out, { freq: 440, type: "triangle", dur: 0.12, gain: 0.18 });
-      break;
     case "scoreMinus":
       tone(context, out, {
         freq: 330,
@@ -170,6 +167,11 @@ export function playSfx(name: SfxName) {
       break;
     case "tick":
       tone(context, out, { freq: 880, type: "square", dur: 0.04, gain: 0.08 });
+      break;
+    case "yourTurn":
+      tone(context, out, { freq: 587.33, type: "square", dur: 0.09, gain: 0.14 });
+      tone(context, out, { freq: 880, type: "square", start: 0.1, dur: 0.09, gain: 0.14 });
+      tone(context, out, { freq: 1174.66, type: "square", start: 0.2, dur: 0.16, gain: 0.16 });
       break;
   }
 }

@@ -13,8 +13,11 @@ export type RoomStatus =
 
 export type RoundStatus = "collecting" | "scoring" | "revealed";
 
-/** null = 미채점, 1 = 마음에 듦, 0 = 그저그럼, -1 = 별로 */
-export type AnswerScore = -1 | 0 | 1;
+/** king = 왕 모드(질문자 고정, 목표 도달 시 수동 승격) / everyone = 다같이 모드(질문자 순환, 도달 시 게임 종료) */
+export type RoomMode = "king" | "everyone";
+
+/** null = 미채점, 1 = 👍 좋아요, 0 = 👎 별로예요 */
+export type AnswerScore = 0 | 1;
 
 // 주의: 아래 row 타입은 반드시 `type` 별칭이어야 한다.
 // `interface` 는 인덱스 시그니처가 없어 supabase-js 의 `Record<string, unknown>`
@@ -26,6 +29,11 @@ export type Room = {
   target_score: number;
   answer_time_limit: number | null;
   status: RoomStatus;
+  game_mode: RoomMode;
+  /** 현재 라운드의 질문자(=답변 대상) player id. 소프트 참조(FK 없음), null 이면 방장으로 폴백. */
+  current_questioner_id: string | null;
+  /** 다같이 모드에서 목표 점수에 도달해 게임이 끝났을 때의 우승자. 소프트 참조. */
+  winner_player_id: string | null;
   created_at: string;
 };
 
@@ -74,6 +82,9 @@ export interface Database {
           target_score?: number;
           answer_time_limit?: number | null;
           status?: RoomStatus;
+          game_mode?: RoomMode;
+          current_questioner_id?: string | null;
+          winner_player_id?: string | null;
           created_at?: string;
         };
         Update: Partial<Room>;
@@ -148,10 +159,19 @@ export interface Database {
         Args: { p_room_id: string; p_new_host: string };
         Returns: undefined;
       };
+      next_questioner: {
+        Args: { p_room_id: string; p_current_id: string };
+        Returns: string;
+      };
+      restart_everyone_game: {
+        Args: { p_room_id: string };
+        Returns: undefined;
+      };
     };
     Enums: {
       room_status: RoomStatus;
       round_status: RoundStatus;
+      room_mode: RoomMode;
     };
     CompositeTypes: { [_ in never]: never };
   };
