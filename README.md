@@ -13,17 +13,19 @@
 
 방을 만들 때 둘 중 하나를 고른다.
 
-- **👑 왕 모드** — 방장이 계속 질문자. 목표 점수에 도달한 사람이 나오면 그 사람이 새 방장이 되고(수동 확인), 모두의 누적 점수가 초기화된 뒤 대기실로 돌아간다. (기존 방식과 동일)
-- **🔄 다같이 모드** — 참가 순서(방장부터, 참가한 순서대로)를 돌아가며 모두가 질문자가 된다. 내 차례가 되면 알림 팝업 + 효과음으로 알려준다. 목표 점수 도달자가 나오면 그 자리에서 **게임 종료(우승 화면)**, "다시 시작"을 누르면 점수가 초기화되고 **직전 우승자부터** 다시 순서가 돈다.
+- **👑 왕 모드** — 방장이 계속 질문자. 목표 점수 도달자가 나오면 **게임 종료 화면**이 뜨고(누가 도달했는지, 리액션 어워드, 누적 점수), 방장이 "👑 왕위 넘기기"를 누르면 그 사람이 새 방장이 되고 모두의 점수가 초기화된 뒤 대기실로 돌아간다.
+- **🔄 다같이 모드** — 참가 순서(방장부터, 참가한 순서대로)를 돌아가며 모두가 질문자가 된다. 내 차례가 되면 알림 팝업 + 효과음으로 알려준다. 목표 점수 도달자가 나오면 그 자리에서 **게임 종료 화면**, "다시 시작"을 누르면 점수가 초기화되고 **직전 우승자부터** 대기실을 거치지 않고 바로 다음 게임이 시작된다.
 
-두 모드 모두 질문자가 방을 나가면 다음 사람에게 자동으로 넘어간다(왕 모드는 최고 점수자, 다같이 모드는 순서상 다음 사람).
+두 모드 모두 목표 점수 도달 시 서버가 직접 판정해 게임을 종료하며(`finalize_round`), 질문자가 방을 나가면 다음 사람에게 자동으로 넘어간다(왕 모드는 최고 점수자, 다같이 모드는 순서상 다음 사람).
 
 ## 주요 기능
 
 - 방 생성(닉네임 · 게임 모드 · 목표 점수 1~20 · 답변 제한시간 5~100초 또는 무제한) → 4자리 참가 코드 발급
 - 참가 코드 + 닉네임으로 입장 (같은 방 내 닉네임 중복 방지). **진행 중인 게임에도 언제든 코드로 합류 가능**
 - 대기실: 참가자 실시간 표시, 방장만 게임 시작(최소 2명)
-- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(👍 좋아요 / 👎 별로예요) → 결과 공개(접기/펼치기) → 다음 질문자**
+- 라운드 흐름: **질문 → 답변 수집 → 익명 채점(👍 좋아요 / 👎 별로예요) → 결과 공개(접기/펼치기, 이모지 리액션) → 다음 질문자**
+- 결과 공개 화면에서 답변마다 😆 웃겨요 · 😮 놀랐어요 · 👏 인정해요 이모지로 반응 가능 (사람당 답변 하나에 1개, 다시 누르면 취소)
+- 다같이 모드 게임 종료 화면에 **🏆 리액션 어워드** — 이모지별로 가장 많이 받은 답변을 "누가 낸 질문에 · 누구의 어떤 답변인지"와 함께 요약(동점은 무작위, 0회면 생략)
 - 시간 초과로 미제출 시 빈 답변은 👎(0점) 처리, 수정 중에는 시간이 남아 있으면 자동 마감 안 됨
 - 제한시간 카운트다운(마지막 5초 강조), 답변 현황판, 상시 누적 점수판(현재 질문자 🎤 표시, 점수 변동 애니메이션)
 - Supabase Realtime 으로 모든 참가자 화면이 즉시 동기화
@@ -69,10 +71,12 @@ npm install
 | `0005_score_floor.sql` | 누적 점수 하한을 0 으로 고정 (`finalize_round` 갱신) |
 | `0006_answer_editing_and_penalty.sql` | `answers.is_editing` 컬럼 추가 · 시간 초과 시 미제출 답변 자동 채점 (`advance_to_scoring` 갱신) |
 | `0007_fix_answer_time_limit_check.sql` | `rooms.answer_time_limit` CHECK 범위 보정(5~60 → 5~100). 61초 이상 설정 시 나던 제약 위반 해결 |
-| `0009_game_modes_and_binary_scoring.sql` | 게임 모드(`game_mode`) · 질문자 순환(`current_questioner_id`) · 우승자(`winner_player_id`) 추가. 채점을 👍(1)/👎(0) 이분화, `next_questioner` / `restart_everyone_game` RPC, 방장 교체·탈주 승계 트리거(`handle_player_leave`) |
-| `0010_reset_rounds_on_new_game.sql` | `promote_host` / `restart_everyone_game` 이 새 게임 시작 시 이전 라운드를 삭제하도록 갱신. (버그 수정: 다같이 모드 "다시 시작" 후 이전 게임의 공개 화면이 남아 멈춘 것처럼 보이던 문제) |
+| `0008_game_modes_and_binary_scoring.sql` | 게임 모드(`game_mode`) · 질문자 순환(`current_questioner_id`) · 우승자(`winner_player_id`) 추가. 채점을 👍(1)/👎(0) 이분화, `next_questioner` RPC, 방장 교체·탈주 승계 트리거(`handle_player_leave`) |
+| `0009_reset_rounds_on_new_game.sql` | `promote_host` / `restart_everyone_game` 이 새 게임 시작 시 이전 라운드를 삭제하도록 갱신. (버그 수정: "다시 시작" 후 이전 게임의 공개 화면이 남아 멈춘 것처럼 보이던 문제) |
+| `0010_restart_skips_waiting_room.sql` | `restart_everyone_game` 이 대기실(`waiting`)을 거치지 않고 곧바로 `question` 상태로 전환 — 방장이 "게임 시작"을 한 번 더 누르지 않아도 됨 |
+| `0011_answer_reactions.sql` | `answer_reactions` 테이블(공개 화면 이모지 리액션 😆/😮/👏) 추가 · RLS · Realtime publication |
+| `0012_king_mode_game_finish.sql` | 왕 모드도 목표 점수 도달 시 다같이 모드와 동일하게 `finalize_round` 안에서 `status='finished'` 로 전환해 게임 종료 화면을 거치도록 통일 (`promote_host` 는 왕위 계승 시 그대로 사용) |
 
-> - 번호가 `0008` 에서 `0009` 로 건너뛴다 — 방장 교체/탈주 승계를 다루던 옛 `0008` 은 `0009` 에 완전히 통합되어 파일을 삭제했다. 순서대로 실행하면 문제없다.
 > - Supabase CLI 를 쓴다면 `supabase db push` 로 한 번에 적용할 수도 있다.
 > - `type "room_status" already exists` 같은 오류가 났었다면, 이전 실행이 중간에 멈춘 것이다.
 >   현재 `0001` 은 이런 상황을 스스로 건너뛰므로 그냥 다시 실행하면 된다.
@@ -153,7 +157,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 마이그레이션(`0001`~`0010`)을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 마이그레이션(`0001`~`0012`)을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -182,7 +186,7 @@ Import 화면의 **Environment Variables** 섹션(또는 배포 후 **Project �
 
 ### 3-6. 배포 후 점검
 
-- **Realtime 동작**: 두 창에서 답변/채점이 즉시 반영되는지. 안 되면 Supabase 대시보드 **Database → Replication** 에서 `supabase_realtime` publication 에 `rooms`, `players`, `rounds`, `answers` 가 포함됐는지 확인(마이그레이션 `0001` 이 처리함).
+- **Realtime 동작**: 두 창에서 답변/채점이 즉시 반영되는지. 안 되면 Supabase 대시보드 **Database → Replication** 에서 `supabase_realtime` publication 에 `rooms`, `players`, `rounds`, `answers`, `answer_reactions` 가 포함됐는지 확인(마이그레이션 `0001`, `0011` 이 처리함).
 - **환경변수 반영**: 값을 배포 후에 바꿨다면 Vercel 에서 **Redeploy** 해야 적용된다.
 - **질문 목록 수정**: [`public/questions.csv`](public/questions.csv) 를 고치고 `git push` 하면 재배포되어 바로 반영된다. (DB 작업 불필요)
 
@@ -203,7 +207,7 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/              0001~0010 스키마 · RPC · 트리거 (idempotent)
+  migrations/              0001~0012 스키마 · RPC · 트리거 (idempotent)
 src/
   app/
     page.tsx               랜딩
@@ -212,19 +216,21 @@ src/
     room/[code]/page.tsx   대기실 + 게임 진행 (단계별 화면 분기)
   components/
     room/                  QuestionDisplay · CountdownTimer · AnswerInput · AnswerProgress
-                           · AnswersReadonly · ScoringPanel · RevealPanel · Scoreboard
-                           · NextRoundControls · QuestionerPanel · GameFinished · TurnNotice
+                           · AnswersReadonly · ScoringPanel · RevealPanel · ReactionBar
+                           · Scoreboard · NextRoundControls · QuestionerPanel · GameFinished
+                           · GameAwards · TurnNotice
     audio/                 SettingsButton · SettingsDialog
     ui/                    ConfirmDialog
     RangeField.tsx
   hooks/
     useRealtimeTable.ts    한 테이블(필터) 실시간 구독 제네릭 훅
-    useGameState.ts        room/players/rounds/answers 동시 구독
+    useGameState.ts        room/players/rounds/answers/reactions 동시 구독
     useRoomByCode.ts       참가 코드 → roomId
   lib/
     supabase/              client.ts · database.types.ts
     audio/                 sfx.ts (Web Audio 합성) · SoundProvider.tsx
-    rooms.ts rounds.ts answers.ts   게임 액션 (RPC 래퍼 포함)
+    rooms.ts rounds.ts answers.ts reactions.ts   게임 액션 (RPC 래퍼 포함)
+    awards.ts              게임 종료 시 리액션 어워드 집계 (GameFinished 전용)
     questions.ts           public/questions.csv 로드 · 랜덤 질문
     shuffle.ts             결정적 셔플 (채점 순서 고정)
     player.ts constants.ts
@@ -236,6 +242,7 @@ src/
 - **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 관리자, 방 당 1명)
 - **rounds** — `room_id` · `question_text` · `target_player_id`(이 라운드의 질문자) · `status`(`collecting`/`scoring`/`revealed`)
 - **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 👍 좋아요 / `0` 👎 별로예요) · `is_editing`. `(round_id, player_id)` 유일
+- **answer_reactions** — `round_id` · `answer_id` · `player_id` · `emoji`(😆/😮/👏). `(answer_id, player_id)` 유일 — 결과 공개 화면 전용
 - **questions_bank** — (레거시) 초기 마이그레이션에만 존재, 앱 미사용
 
 라운드 전환은 모두 Postgres RPC 안에서 라운드 row 를 `FOR UPDATE` 로 잠그고 현재 상태를 확인한 뒤 수행하므로,

@@ -70,6 +70,18 @@ export type Answer = {
   is_editing: boolean;
 };
 
+/** 웃겨요 / 놀랐어요 / 인정해요 */
+export type ReactionEmoji = "😆" | "😮" | "👏";
+
+export type AnswerReaction = {
+  id: string;
+  round_id: string;
+  answer_id: string;
+  player_id: string;
+  emoji: ReactionEmoji;
+  created_at: string;
+};
+
 export interface Database {
   public: {
     Tables: {
@@ -134,6 +146,19 @@ export interface Database {
           is_editing?: boolean;
         };
         Update: Partial<Answer>;
+        Relationships: [];
+      };
+      answer_reactions: {
+        Row: AnswerReaction;
+        Insert: {
+          id?: string;
+          round_id: string;
+          answer_id: string;
+          player_id: string;
+          emoji: ReactionEmoji;
+          created_at?: string;
+        };
+        Update: Partial<AnswerReaction>;
         Relationships: [];
       };
     };

@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { Answer, Player } from "@/lib/supabase/database.types";
+import { ReactionBar } from "./ReactionBar";
+import type { Answer, AnswerReaction, Player } from "@/lib/supabase/database.types";
 
 interface RevealPanelProps {
   answers: Answer[];
   players: Player[];
+  reactions: AnswerReaction[];
+  myPlayerId: string;
 }
 
 const BADGE: Record<string, { cls: string; emoji: string; label: string }> = {
@@ -14,7 +17,12 @@ const BADGE: Record<string, { cls: string; emoji: string; label: string }> = {
 };
 
 /** 공개 단계: 누가 어떤 답변을 썼고 몇 점을 받았는지 한 번에. 점수 내림차순. 접을 수 있다(기본 펼침). */
-export function RevealPanel({ answers, players }: RevealPanelProps) {
+export function RevealPanel({
+  answers,
+  players,
+  reactions,
+  myPlayerId,
+}: RevealPanelProps) {
   const [open, setOpen] = useState(true);
 
   const nameOf = (playerId: string) =>
@@ -80,6 +88,12 @@ export function RevealPanel({ answers, players }: RevealPanelProps) {
                 <span className="text-slate-400">(빈 답변)</span>
               )}
             </p>
+            <ReactionBar
+              roundId={a.round_id}
+              answerId={a.id}
+              myPlayerId={myPlayerId}
+              reactions={reactions.filter((r) => r.answer_id === a.id)}
+            />
           </li>
         ))}
       </ul>

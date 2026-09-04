@@ -18,7 +18,6 @@ import { AnswersReadonly } from "@/components/room/AnswersReadonly";
 import { ScoringPanel } from "@/components/room/ScoringPanel";
 import { RevealPanel } from "@/components/room/RevealPanel";
 import { Scoreboard } from "@/components/room/Scoreboard";
-import { NextRoundControls } from "@/components/room/NextRoundControls";
 import { GameFinished } from "@/components/room/GameFinished";
 import { TurnNotice } from "@/components/room/TurnNotice";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -124,7 +123,6 @@ export default function RoomPage() {
   const { play } = useSound();
   const roundStartRef = useRef<string | null>(null);
   const phaseRef = useRef<string | null>(null);
-  const winRef = useRef<string | null>(null);
   const finishRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -139,20 +137,7 @@ export default function RoomPage() {
     }
   }, [round, play]);
 
-  // 왕 모드: 방장 제외 누군가 목표 점수에 도달하면 승리음
-  useEffect(() => {
-    if (!round || round.status !== "revealed" || !room) return;
-    if (room.game_mode !== "king") return;
-    const someoneWon = game.players.some(
-      (p) => !p.is_host && p.score >= room.target_score,
-    );
-    if (someoneWon && winRef.current !== round.id) {
-      winRef.current = round.id;
-      play("win");
-    }
-  }, [round, room, game.players, play]);
-
-  // 다같이 모드: 게임 종료(우승자 확정) 시 승리음
+  // 게임 종료(목표 점수 도달자 확정, 왕/다같이 모드 공통) 시 승리음
   useEffect(() => {
     if (!room || room.status !== "finished") return;
     if (finishRef.current !== room.id) {
@@ -259,17 +244,18 @@ export default function RoomPage() {
   const enoughPlayers = game.players.length >= MIN_PLAYERS_TO_START;
   const modeInfo = GAME_MODE_INFO[room.game_mode];
 
-  // --- 게임 종료 화면 (다같이 모드, 우승자 확정) ----------------------------
+  // --- 게임 종료 화면 (목표 점수 도달자 확정, 왕/다같이 모드 공통) -----------
   if (room.status === "finished") {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pb-8 pt-14 sm:px-6 sm:pt-12">
         <GameFinished
           roomId={room.id}
+          gameMode={room.game_mode}
           winnerId={room.winner_player_id}
           players={game.players}
           targetScore={room.target_score}
           mePlayerId={stored.playerId}
-          canRestart={isHost}
+          canContinue={isHost}
         />
         <button
           onClick={handleLeave}
@@ -293,6 +279,9 @@ export default function RoomPage() {
     // 현재 라운드 소속 답변만 사용 (라운드 전환 직후 이전 답변 잔상 방어)
     const roundAnswers = round
       ? game.answers.filter((a) => a.round_id === round.id)
+      : [];
+    const roundReactions = round
+      ? game.reactions.filter((r) => r.round_id === round.id)
       : [];
     const myAnswer =
       roundAnswers.find((a) => a.player_id === stored.playerId) ?? null;
@@ -408,21 +397,13 @@ export default function RoomPage() {
 
           {round?.status === "revealed" ? (
             <>
-              <RevealPanel answers={roundAnswers} players={game.players} />
-              {room.game_mode === "king" ? (
-                isQuestioner && hostPlayer ? (
-                  <NextRoundControls
-                    roomId={room.id}
-                    hostPlayer={hostPlayer}
-                    players={game.players}
-                    targetScore={room.target_score}
-                  />
-                ) : (
-                  <div className="card text-center text-sm text-slate-500">
-                    방장이 다음 라운드를 준비 중입니다...
-                  </div>
-                )
-              ) : isQuestioner && questionerPlayer ? (
+              <RevealPanel
+                answers={roundAnswers}
+                players={game.players}
+                reactions={roundReactions}
+                myPlayerId={stored.playerId}
+              />
+              {isQuestioner && questionerPlayer ? (
                 <QuestionerPanel
                   roomId={room.id}
                   questionerId={questionerPlayer.id}

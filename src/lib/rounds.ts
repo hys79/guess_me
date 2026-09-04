@@ -103,7 +103,7 @@ export async function promoteHost(
   if (error) throw new GameError(error.message);
 }
 
-/** (다같이 모드) 게임 재시작: 점수 초기화 + 직전 우승자부터 질문 시작 + 대기실로. */
+/** (다같이 모드) 게임 재시작: 점수 초기화 + 직전 우승자부터 곧바로 질문 화면으로(대기실 생략). */
 export async function restartEveryoneGame(roomId: string): Promise<void> {
   const { error } = await supabase.rpc("restart_everyone_game", {
     p_room_id: roomId,

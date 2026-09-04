@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
 
-type TableName = "rooms" | "players" | "rounds" | "answers";
+type TableName =
+  | "rooms"
+  | "players"
+  | "rounds"
+  | "answers"
+  | "answer_reactions";
 
 /** postgres_changes 콜백이 넘겨주는 payload 의 느슨한 형태 */
 interface ChangePayload<Row> {
