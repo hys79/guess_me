@@ -87,13 +87,17 @@ create table if not exists public.rooms (
   -- (정합성은 handle_player_leave 가 직접 관리한다).
   current_questioner_id uuid     null,
   winner_player_id      uuid     null,
-  created_at        timestamptz  not null default now()
+  created_at        timestamptz  not null default now(),
+  -- 마지막 활동 시각. touch_room_activity 트리거가 참가/라운드/답변 때 갱신한다.
+  -- 방치된 방 정리(0002_cleanup_cron.sql)의 기준값.
+  last_active_at    timestamptz  not null default now()
 );
 
 comment on column public.rooms.code is '참가용 짧은 코드';
 comment on column public.rooms.answer_time_limit is '답변 제한 시간(초, 5~100). null 이면 무제한.';
 comment on column public.rooms.current_questioner_id is '현재 라운드의 질문자(=답변 대상) player id. 소프트 참조.';
 comment on column public.rooms.winner_player_id is '목표 점수 도달로 게임이 끝났을 때의 우승자. 소프트 참조.';
+comment on column public.rooms.last_active_at is '마지막 활동 시각. 2시간 이상 조용하면 cron 이 방을 삭제한다.';
 
 -- players : 방 참가자
 create table if not exists public.players (
@@ -183,21 +187,23 @@ alter table public.rooms add constraint rooms_answer_time_limit_check
 alter table public.rooms add column if not exists game_mode public.room_mode not null default 'king';
 alter table public.rooms add column if not exists current_questioner_id uuid;
 alter table public.rooms add column if not exists winner_player_id uuid;
+alter table public.rooms add column if not exists last_active_at timestamptz not null default now();
 
 -- answers.is_editing 가 없던 시절 대비
 alter table public.answers add column if not exists is_editing boolean not null default false;
 
 -- answers.score: 3단계 채점(-1/0/1) 시절의 -1 행을 0(👎)으로 옮긴 뒤 범위를 좁힌다.
-update public.answers set score = 0 where score = -1;
+-- 반드시 "제약 해제 → 데이터 정리 → 새 제약" 순서. 기존 제약을 켜 둔 채로 옮기면
+-- 옮기는 값이 옛 제약을 위반해(예: emoji 는 옛 제약이 ❤️ 를 아예 허용 안 함)
+-- 스크립트 전체가 롤백된다.
 alter table public.answers drop constraint if exists answers_score_check;
+update public.answers set score = 0 where score = -1;
 alter table public.answers add constraint answers_score_check check (score in (0, 1));
 
 -- answer_reactions.emoji: 3종(😆/😮/👏) 또는 그 이전 이모지 행을 모두 ❤️ 로 통일.
--- *** 이 두 줄을 지우면 안 된다 *** — 아래 CHECK 제약이 기존 행과 충돌해
--- 스크립트 전체가 롤백된다(점수 -1 -> 0 을 옮길 때와 똑같은 이유).
+alter table public.answer_reactions drop constraint if exists answer_reactions_emoji_check;
 alter table public.answer_reactions alter column emoji set default '❤️';
 update public.answer_reactions set emoji = '❤️' where emoji <> '❤️';
-alter table public.answer_reactions drop constraint if exists answer_reactions_emoji_check;
 alter table public.answer_reactions
   add constraint answer_reactions_emoji_check check (emoji = '❤️');
 
@@ -468,6 +474,9 @@ begin
 
   select count(*) into v_remaining from public.players where room_id = old.room_id;
   if v_remaining = 0 then
+    -- 마지막 참가자가 나갔다 → 방을 통째로 삭제(rounds/answers/answer_reactions 는
+    -- FK on delete cascade). 빈 방을 남겨 두면 영구히 쌓이기만 한다.
+    delete from public.rooms where id = old.room_id;
     return old;
   end if;
 
@@ -526,6 +535,47 @@ drop function if exists public.reassign_host_on_leave();
 create trigger players_handle_leave
   after delete on public.players
   for each row execute function public.handle_player_leave();
+
+-- -----------------------------------------------------------------------------
+-- 방 활동 시각(rooms.last_active_at) 갱신
+-- 참가 / 라운드 생성·상태전환 / 답변 제출을 "활동"으로 본다. 채점(answers UPDATE)
+-- 은 굳이 안 봐도 라운드 상태전환이 몇 분 안에 일어나므로 신호가 충분하다.
+-- -----------------------------------------------------------------------------
+create or replace function public.touch_room_activity()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_room_id uuid;
+begin
+  if tg_table_name = 'answers' then
+    select room_id into v_room_id from public.rounds where id = new.round_id;
+  else
+    v_room_id := new.room_id;   -- players, rounds
+  end if;
+
+  if v_room_id is not null then
+    update public.rooms set last_active_at = now() where id = v_room_id;
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists players_touch_activity on public.players;
+drop trigger if exists rounds_touch_activity  on public.rounds;
+drop trigger if exists answers_touch_activity on public.answers;
+
+create trigger players_touch_activity
+  after insert on public.players
+  for each row execute function public.touch_room_activity();
+
+create trigger rounds_touch_activity
+  after insert or update on public.rounds
+  for each row execute function public.touch_room_activity();
+
+create trigger answers_touch_activity
+  after insert on public.answers
+  for each row execute function public.touch_room_activity();
 
 grant execute on function public.gen_room_code()                  to anon;
 grant execute on function public.pick_random_question()           to anon;

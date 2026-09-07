@@ -18,6 +18,8 @@
 
 두 모드 모두 목표 점수 도달 시 서버가 직접 판정해 게임을 종료하며(`finalize_round`), 질문자가 방을 나가면 다음 사람에게 자동으로 넘어간다(왕 모드는 최고 점수자, 다같이 모드는 순서상 다음 사람).
 
+**방 정리**: 마지막 참가자가 나가면 방이 즉시 삭제되고(트리거), 그 외 방치된 방(탭만 닫는 경우 등)은 마지막 활동 후 2시간이 지나면 `pg_cron` 이 15분마다 훑어 삭제한다. 하위 데이터는 FK cascade 로 함께 지워진다.
+
 ## 주요 기능
 
 - 방 생성(닉네임 · 게임 모드 · 목표 점수 1~20 · 답변 제한시간 5~100초 또는 무제한) → 4자리 참가 코드 발급
@@ -59,22 +61,29 @@ npm install
 
 ### 1-3. 데이터베이스 스키마 적용
 
-좌측 **SQL Editor** 에서 [`supabase/migrations/0001_schema.sql`](supabase/migrations/0001_schema.sql) 전체를 붙여넣고 **Run**.
-파일 하나가 스키마 전부(테이블 · ENUM · RPC · 트리거 · RLS · Realtime)를 담고 있고,
-여러 번 실행해도 안전하다(idempotent). 이전 게임 버전에서 이어서 올리는 경우에도
-같은 파일을 그대로 다시 실행하면 현재 상태로 맞춰진다.
+좌측 **SQL Editor** 에서 아래 두 파일을 순서대로 붙여넣고 각각 **Run**. 둘 다 여러 번
+실행해도 안전하다(idempotent). 이전 게임 버전에서 이어 올리는 경우에도 그대로 다시
+실행하면 현재 상태로 맞춰진다.
 
-| 대상 | 내용 |
-| --- | --- |
-| 테이블 | `rooms` · `players` · `questions_bank`(레거시) · `rounds` · `answers` · `answer_reactions` |
-| ENUM | `room_status` · `round_status` · `room_mode` |
-| RPC | `gen_room_code` · `pick_random_question` · `advance_to_scoring` · `next_questioner` · `finalize_round` · `promote_host` · `restart_everyone_game` |
-| 트리거 | `players_handle_leave` → `handle_player_leave()` (방장·질문자 탈주 승계) |
-| RLS | 6개 테이블 anon 전체 접근(`questions_bank` 만 읽기 전용) |
-| Realtime | `rooms` · `players` · `rounds` · `answers` · `answer_reactions` publication 등록 |
+1. [`0001_schema.sql`](supabase/migrations/0001_schema.sql) — 스키마 전부
 
-> - 이전에는 마이그레이션이 `0001`~`0012` 로 나뉘어 있었으나, 배포 전이라 현재 상태
->   하나로 스쿼시했다. 변경 이력은 git 로그에 남아 있다.
+   | 대상 | 내용 |
+   | --- | --- |
+   | 테이블 | `rooms` · `players` · `questions_bank`(레거시) · `rounds` · `answers` · `answer_reactions` |
+   | ENUM | `room_status` · `round_status` · `room_mode` |
+   | RPC | `gen_room_code` · `pick_random_question` · `advance_to_scoring` · `next_questioner` · `finalize_round` · `promote_host` · `restart_everyone_game` |
+   | 트리거 | `players_handle_leave`(방장·질문자 탈주 승계 + **마지막 1명 나가면 방 삭제**) · `*_touch_activity`(참가/라운드/답변 시 `rooms.last_active_at` 갱신) |
+   | RLS | 6개 테이블 anon 전체 접근(`questions_bank` 만 읽기 전용) |
+   | Realtime | `rooms` · `players` · `rounds` · `answers` · `answer_reactions` publication 등록 |
+
+2. [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) — 방치된 방 자동 정리
+
+   `pg_cron` 으로 15분마다 "마지막 활동이 2시간 넘은 방"을 삭제한다(하위 행은 cascade).
+   `create extension` 이 권한으로 막히면 대시보드 **Database → Extensions** 에서
+   `pg_cron` 을 켠 뒤 이 파일만 다시 실행한다.
+
+> - 이전에는 마이그레이션이 `0001`~`0012` 로 나뉘어 있었으나, 배포 전이라 스키마를
+>   `0001_schema.sql` 하나로 스쿼시했다(운영용 cron 만 `0002` 로 분리). 이력은 git 로그에 있다.
 > - Supabase CLI 를 쓴다면 `supabase db push` 로도 적용할 수 있다.
 > - SQL Editor 는 붙여넣은 스크립트 전체를 한 트랜잭션으로 실행한다. 중간에 하나라도
 >   에러가 나면 그 실행분은 전부 롤백되니, 에러를 고친 뒤 **파일 전체를 다시** 붙여넣고 재실행한다.
@@ -153,7 +162,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 [`0001_schema.sql`](supabase/migrations/0001_schema.sql) 을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 [`0001_schema.sql`](supabase/migrations/0001_schema.sql) · [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) 을 그 프로젝트의 SQL Editor 에서 실행한다.
 질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -203,7 +212,8 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/0001_schema.sql   스키마 전체(테이블·ENUM·RPC·트리거·RLS·Realtime, idempotent)
+  migrations/0001_schema.sql        스키마 전체(테이블·ENUM·RPC·트리거·RLS·Realtime, idempotent)
+  migrations/0002_cleanup_cron.sql  방치된 방 자동 삭제(pg_cron, 2시간 TTL)
 src/
   app/
     page.tsx               랜딩
@@ -234,7 +244,7 @@ src/
 
 ## 데이터 모델
 
-- **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`) · `game_mode`(`king`/`everyone`) · `current_questioner_id`(현재 질문자, 소프트 참조) · `winner_player_id`(다같이 모드 우승자, 소프트 참조)
+- **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`) · `game_mode`(`king`/`everyone`) · `current_questioner_id`(현재 질문자, 소프트 참조) · `winner_player_id`(다같이 모드 우승자, 소프트 참조) · `last_active_at`(2시간 방치 시 cron 이 삭제)
 - **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 관리자, 방 당 1명)
 - **rounds** — `room_id` · `question_text` · `target_player_id`(이 라운드의 질문자) · `status`(`collecting`/`scoring`/`revealed`)
 - **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 👍 좋아요 / `0` 👎 별로예요) · `is_editing`. `(round_id, player_id)` 유일

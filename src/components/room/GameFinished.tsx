@@ -5,7 +5,6 @@ import { restartEveryoneGame, promoteHost } from "@/lib/rounds";
 import { GameError } from "@/lib/rooms";
 import { fetchGameAward, type GameAward } from "@/lib/awards";
 import { Scoreboard } from "./Scoreboard";
-import { GameAwards } from "./GameAwards";
 import type { Player, RoomMode } from "@/lib/supabase/database.types";
 
 interface GameFinishedProps {
@@ -90,9 +89,27 @@ export function GameFinished({
         <p className="text-sm text-slate-500">
           목표 {targetScore}점에 가장 먼저 도달했습니다.
         </p>
-      </div>
 
-      <GameAwards award={award} />
+        {award ? (
+          <div className="mt-3 space-y-0.5 border-t border-slate-100 pt-3">
+            <p className="text-xs font-medium text-slate-400">
+              ❤️ 가장 공감받은 답변 · {award.count}
+            </p>
+            <p className="text-xs text-slate-400">
+              {award.askerNickname}: &ldquo;{award.questionText}&rdquo;
+            </p>
+            <p className="text-sm text-slate-700">
+              <span className="font-semibold text-primary-700">
+                {award.authorNickname}
+              </span>
+              {" — "}
+              {award.answerText || (
+                <span className="text-slate-400">(빈 답변)</span>
+              )}
+            </p>
+          </div>
+        ) : null}
+      </div>
 
       <Scoreboard
         players={players}

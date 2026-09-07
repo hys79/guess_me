@@ -35,6 +35,8 @@ export type Room = {
   /** 다같이 모드에서 목표 점수에 도달해 게임이 끝났을 때의 우승자. 소프트 참조. */
   winner_player_id: string | null;
   created_at: string;
+  /** 마지막 활동 시각. 2시간 이상 조용하면 cron 이 방을 삭제한다. */
+  last_active_at: string;
 };
 
 export type Player = {
@@ -98,6 +100,7 @@ export interface Database {
           current_questioner_id?: string | null;
           winner_player_id?: string | null;
           created_at?: string;
+          last_active_at?: string;
         };
         Update: Partial<Room>;
         Relationships: [];
