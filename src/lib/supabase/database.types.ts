@@ -70,8 +70,8 @@ export type Answer = {
   is_editing: boolean;
 };
 
-/** 웃겨요 / 놀랐어요 / 인정해요 */
-export type ReactionEmoji = "😆" | "😮" | "👏";
+/** 답변 공감 — "좋아요" 단일 이모지 */
+export type ReactionEmoji = "❤️";
 
 export type AnswerReaction = {
   id: string;
@@ -155,7 +155,7 @@ export interface Database {
           round_id: string;
           answer_id: string;
           player_id: string;
-          emoji: ReactionEmoji;
+          emoji?: ReactionEmoji;
           created_at?: string;
         };
         Update: Partial<AnswerReaction>;

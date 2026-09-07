@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { restartEveryoneGame, promoteHost } from "@/lib/rounds";
 import { GameError } from "@/lib/rooms";
-import { fetchGameAwards, type GameAward } from "@/lib/awards";
+import { fetchGameAward, type GameAward } from "@/lib/awards";
 import { Scoreboard } from "./Scoreboard";
 import { GameAwards } from "./GameAwards";
 import type { Player, RoomMode } from "@/lib/supabase/database.types";
@@ -35,14 +35,14 @@ export function GameFinished({
 }: GameFinishedProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [awards, setAwards] = useState<GameAward[]>([]);
+  const [award, setAward] = useState<GameAward | null>(null);
 
-  // 다음 단계로 넘어가며 라운드/답변/리액션이 지워지기 전에, 게임 종료 시점에
+  // 다음 단계로 넘어가며 라운드/답변/좋아요가 지워지기 전에, 게임 종료 시점에
   // 한 번만 집계한다.
   useEffect(() => {
     let cancelled = false;
-    fetchGameAwards(roomId, players).then((result) => {
-      if (!cancelled) setAwards(result);
+    fetchGameAward(roomId, players).then((result) => {
+      if (!cancelled) setAward(result);
     });
     return () => {
       cancelled = true;
@@ -92,7 +92,7 @@ export function GameFinished({
         </p>
       </div>
 
-      <GameAwards awards={awards} />
+      <GameAwards award={award} />
 
       <Scoreboard
         players={players}

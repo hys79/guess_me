@@ -130,12 +130,5 @@ export function useGameState(roomId: string | null) {
       answers.error ||
       reactions.error ||
       null,
-    refetch: {
-      room: room.refetch,
-      players: players.refetch,
-      rounds: rounds.refetch,
-      answers: answers.refetch,
-      reactions: reactions.refetch,
-    },
   };
 }
