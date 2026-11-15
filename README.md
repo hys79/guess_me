@@ -1,15 +1,20 @@
-# Guess Me!
+# 미니게임 모음
 
-"나를 가장 잘 아는 사람은 누구?" — 닉네임 기반 실시간 추측 게임.
-질문자가 자신에 대한 질문을 던지면, 나머지 참가자들이 답을 적고,
-질문자가 익명으로 채점한 뒤 결과를 함께 공개한다.
+방 코드 하나로 친구들과 바로 한 판 — 닉네임 기반 실시간 파티 미니게임 허브.
+방 코드 · 닉네임 · 대기실 · 점수판은 모든 게임이 공유하고, 게임은 모듈 단위로 추가한다
+(`rooms.game_type` 으로 구분). 개발 인수인계 메모는 [`HANDOFF_minigame_hub.md`](HANDOFF_minigame_hub.md).
+
+| 게임 | 설명 |
+| --- | --- |
+| 🎯 **Guess Me!** | "나를 가장 잘 아는 사람은 누구?" 질문자가 자신에 대한 질문을 던지면 나머지가 답을 적고, 질문자가 익명으로 채점한 뒤 결과를 함께 공개한다. |
+| 🎧 **노래 맞히기** | 출제자가 유튜브 링크 + 구간 + 정답을 정하면 모두가 같은 구간을 듣고(영상은 가려짐) 제목을 맞힌다. 왕 모드 / 다같이 모드. 먼저 맞힌 순서대로 점수(맞히는 사람이 N명이면 1등 N점). 제출한 답안은 모두에게 공개되고 출제자가 재밌거나 비슷한 답을 정답으로 인정할 수 있다. 정답 공개 때 노래가 이어서 나온다. |
 
 - **프레임워크**: Next.js 15 (App Router) · React 19 · TypeScript
 - **스타일**: Tailwind CSS 3 — 흰 배경 + 파란색(`#2563eb`) 포인트, 은은한 그라데이션/그림자
 - **백엔드**: Supabase (Postgres + Realtime). 인증은 사용하지 않고, 플레이어는 `localStorage` 의 `player_id` 로 식별
 - **사운드**: 효과음은 Web Audio API 합성(외부 파일 없음), 배경음악만 mp3 파일 사용
 
-## 게임 모드
+## Guess Me! — 게임 모드
 
 방을 만들 때 둘 중 하나를 고른다.
 
@@ -61,33 +66,23 @@ npm install
 
 ### 1-3. 데이터베이스 스키마 적용
 
-좌측 **SQL Editor** 에서 아래 두 파일을 순서대로 붙여넣고 각각 **Run**. 둘 다 여러 번
-실행해도 안전하다(idempotent). 이전 게임 버전에서 이어 올리는 경우에도 그대로 다시
-실행하면 현재 상태로 맞춰진다.
+좌측 **SQL Editor** 에서 `supabase/migrations/` 의 파일을 **번호 순서대로** 붙여넣고 각각 **Run**.
+전부 여러 번 실행해도 안전하다(idempotent). 이전 버전 DB 에서 이어 올리는 경우에도 그대로 다시
+실행하면 현재 상태로 맞춰진다. **게임 1개 = SQL 파일 1개**.
 
-1. [`0001_schema.sql`](supabase/migrations/0001_schema.sql) — 스키마 전부
+| 파일 | 내용 |
+| --- | --- |
+| [`0001_common.sql`](supabase/migrations/0001_common.sql) | 공통: `rooms`(+`game_type`) · `players` · 방 코드 · `next_questioner`(차례 돌리기) · 탈주 공통 처리(`handle_player_leave`: **마지막 1명이 나가면 방 삭제**, 방장 승계, `<game_type>_on_leave` 훅 호출) · 활동 갱신 트리거 · RLS · Realtime |
+| [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) | 운영: `pg_cron` 이 15분마다 "마지막 활동이 2시간 넘은 방" 삭제(하위 행 cascade). `create extension` 이 권한으로 막히면 대시보드 **Database → Extensions** 에서 `pg_cron` 을 켠 뒤 이 파일만 다시 실행 |
+| [`0003_game_guess_me.sql`](supabase/migrations/0003_game_guess_me.sql) | Guess Me 전용: `rounds` · `answers` · `answer_reactions` · `questions_bank`(레거시) · `advance_to_scoring` · `finalize_round` · `promote_host` · `restart_everyone_game` · `guess_me_on_leave` |
+| [`0004_game_song.sql`](supabase/migrations/0004_game_song.sql) | 노래 맞히기 전용: `song_*` 테이블 · 정답 보호(RLS) · 출제/재생/정답/힌트 RPC · `song_on_leave` |
 
-   | 대상 | 내용 |
-   | --- | --- |
-   | 테이블 | `rooms` · `players` · `questions_bank`(레거시) · `rounds` · `answers` · `answer_reactions` |
-   | ENUM | `room_status` · `round_status` · `room_mode` |
-   | RPC | `gen_room_code` · `pick_random_question` · `advance_to_scoring` · `next_questioner` · `finalize_round` · `promote_host` · `restart_everyone_game` |
-   | 트리거 | `players_handle_leave`(방장·질문자 탈주 승계 + **마지막 1명 나가면 방 삭제**) · `*_touch_activity`(참가/라운드/답변 시 `rooms.last_active_at` 갱신) |
-   | RLS | 6개 테이블 anon 전체 접근(`questions_bank` 만 읽기 전용) |
-   | Realtime | `rooms` · `players` · `rounds` · `answers` · `answer_reactions` publication 등록 |
-
-2. [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) — 방치된 방 자동 정리
-
-   `pg_cron` 으로 15분마다 "마지막 활동이 2시간 넘은 방"을 삭제한다(하위 행은 cascade).
-   `create extension` 이 권한으로 막히면 대시보드 **Database → Extensions** 에서
-   `pg_cron` 을 켠 뒤 이 파일만 다시 실행한다.
-
-> - 이전에는 마이그레이션이 `0001`~`0012` 로 나뉘어 있었으나, 배포 전이라 스키마를
->   `0001_schema.sql` 하나로 스쿼시했다(운영용 cron 만 `0002` 로 분리). 이력은 git 로그에 있다.
+> - 새 게임을 추가하면 `0005_game_<이름>.sql` 한 파일만 더하면 된다(공통 파일은 수정 불필요).
+> - 이전에는 `0001_schema.sql` 한 파일이었다. 공통 / 게임별로 쪼갰을 뿐 내용은 이어진다.
 > - Supabase CLI 를 쓴다면 `supabase db push` 로도 적용할 수 있다.
 > - SQL Editor 는 붙여넣은 스크립트 전체를 한 트랜잭션으로 실행한다. 중간에 하나라도
 >   에러가 나면 그 실행분은 전부 롤백되니, 에러를 고친 뒤 **파일 전체를 다시** 붙여넣고 재실행한다.
->   완전히 초기화하려면 `0001_schema.sql` 상단 주석의 `drop` 블록을 풀어 먼저 실행한다.
+>   각 파일 상단 주석에 그 파일만 처음부터 다시 만드는 `drop` 블록이 있다.
 
 ### 1-4. 질문 목록
 
@@ -162,7 +157,7 @@ git push -u origin main
 ### 3-2. Supabase 프로젝트 준비 (아직 안 했다면)
 
 위 **1-2 ~ 1-3** 을 그대로 수행한다. 로컬 개발용과 배포용 Supabase 프로젝트를 나눠도 되고, 하나를 같이 써도 된다.
-배포용으로 새로 만들었다면 [`0001_schema.sql`](supabase/migrations/0001_schema.sql) · [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) 을 그 프로젝트의 SQL Editor 에서 실행한다.
+배포용으로 새로 만들었다면 `supabase/migrations/` 의 `0001` ~ `0004` 를 번호 순서대로 그 프로젝트의 SQL Editor 에서 실행한다.
 질문은 CSV 에서 읽으므로 DB 시드 작업은 없다.
 
 ### 3-3. Vercel 에 프로젝트 가져오기
@@ -191,7 +186,7 @@ Import 화면의 **Environment Variables** 섹션(또는 배포 후 **Project �
 
 ### 3-6. 배포 후 점검
 
-- **Realtime 동작**: 두 창에서 답변/채점이 즉시 반영되는지. 안 되면 Supabase 대시보드 **Database → Replication** 에서 `supabase_realtime` publication 에 `rooms`, `players`, `rounds`, `answers`, `answer_reactions` 가 포함됐는지 확인(`0001_schema.sql` 이 처리함).
+- **Realtime 동작**: 두 창에서 답변/채점이 즉시 반영되는지. 안 되면 Supabase 대시보드 **Database → Replication** 에서 `supabase_realtime` publication 에 `rooms`, `players`, `rounds`, `answers`, `answer_reactions` 가 포함됐는지 확인(`0001`·`0003`·`0004` 가 처리함. 노래 맞히기는 `song_rounds`·`song_hints`·`song_guesses`·`song_ready`·`song_hint_requests` 도 포함).
 - **환경변수 반영**: 값을 배포 후에 바꿨다면 Vercel 에서 **Redeploy** 해야 적용된다.
 - **질문 목록 수정**: [`public/questions.csv`](public/questions.csv) 를 고치고 `git push` 하면 재배포되어 바로 반영된다. (DB 작업 불필요)
 
@@ -212,44 +207,59 @@ public/
   questions.csv            기본 질문 목록 (UTF-8 BOM, "{닉네임}" 뒤에 붙는 문장)
   audio/bgm.mp3            (직접 추가) 배경음악
 supabase/
-  migrations/0001_schema.sql        스키마 전체(테이블·ENUM·RPC·트리거·RLS·Realtime, idempotent)
+  migrations/0001_common.sql        공통(rooms · players · 탈주 공통 처리 · RLS · Realtime)
   migrations/0002_cleanup_cron.sql  방치된 방 자동 삭제(pg_cron, 2시간 TTL)
+  migrations/0003_game_guess_me.sql Guess Me 전용
+  migrations/0004_game_song.sql     노래 맞히기 전용
 src/
   app/
-    page.tsx               랜딩
-    create/page.tsx        방 생성
-    join/page.tsx          방 참가
-    room/[code]/page.tsx   대기실 + 게임 진행 (단계별 화면 분기)
+    page.tsx               홈: 게임 카드 목록 + 방 코드로 참가
+    create/page.tsx        /create?game=<id> 방 생성 (게임별 옵션)
+    join/page.tsx          방 참가 (게임 무관)
+    room/[code]/page.tsx   방 셸: 실시간 구독 · 입장 확인 · 대기실 · 게임 화면 선택
+  games/
+    registry.ts            게임 메타데이터 (이름·아이콘·최소 인원·BGM) + 허브 이름
+    types.ts ui.ts         게임이 구현할 계약(GameUI) · 게임 id → 구현 매핑
+    guess-me/              GuessMeRoom · CreateOptions · components/ · lib/ · hooks/
+    song/                  SongRoom · CreateOptions · rules.ts
+                           components/ (SongSetup · ClipPlayer · YouTubeFrame · GuessPanel
+                                        · SetterPanel · HintList · RevealCard · SongFinished)
+                           lib/ (youtube · songs · setterNote) · hooks/ (useSongState · useServerClock)
   components/
-    room/                  QuestionDisplay · CountdownTimer · AnswerInput · AnswerProgress
-                           · AnswersReadonly · ScoringPanel · RevealPanel · ReactionBar
-                           · Scoreboard · NextRoundControls · QuestionerPanel · GameFinished
-                           · GameAwards · TurnNotice
+    common/                Lobby · Scoreboard · CountdownTimer · RoomSettingsFields
     audio/                 SettingsButton · SettingsDialog
     ui/                    ConfirmDialog
     RangeField.tsx
   hooks/
     useRealtimeTable.ts    한 테이블(필터) 실시간 구독 제네릭 훅
-    useGameState.ts        room/players/rounds/answers/reactions 동시 구독
+    useRoomBase.ts         방 + 참가자 실시간 구독 (모든 게임 공통)
     useRoomByCode.ts       참가 코드 → roomId
   lib/
     supabase/              client.ts · database.types.ts
     audio/                 sfx.ts (Web Audio 합성) · SoundProvider.tsx
-    rooms.ts rounds.ts answers.ts reactions.ts   게임 액션 (RPC 래퍼 포함)
-    awards.ts              게임 종료 시 "가장 공감받은 답변" 집계 (GameFinished 전용)
-    questions.ts           public/questions.csv 로드 · 랜덤 질문
-    shuffle.ts             결정적 셔플 (채점 순서 고정)
+    rooms.ts               방 생성 / 참가 / 나가기 (게임 무관)
     player.ts constants.ts
 ```
 
+**새 게임 추가**: `registry.ts` 에 한 줄 → `src/games/<id>/` 모듈(`ui.ts` 에서 `GameUI` 구현) → `games/ui.ts` 에 한 줄 → `supabase/migrations/` 에 게임 SQL 1개.
+
 ## 데이터 모델
 
-- **rooms** — `code`(4자리) · `host_nickname` · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`) · `game_mode`(`king`/`everyone`) · `current_questioner_id`(현재 질문자, 소프트 참조) · `winner_player_id`(다같이 모드 우승자, 소프트 참조) · `last_active_at`(2시간 방치 시 cron 이 삭제)
+**공통 (0001)**
+- **rooms** — `code`(4자리) · `host_nickname` · `game_type`(`guess_me`/`song`/…) · `target_score`(1~20) · `answer_time_limit`(5~100초 또는 `null`, 게임별 의미) · `status`(`waiting`/`question`/`scoring`/`reveal`/`finished`) · `last_active_at`(2시간 방치 시 cron 이 삭제)
 - **players** — `room_id` · `nickname`(방 내 유일) · `score` · `is_host`(방 관리자, 방 당 1명)
+
+**Guess Me (0003)**
+- **rooms 전용 컬럼** — `game_mode`(`king`/`everyone`) · `current_questioner_id`(현재 질문자, 소프트 참조) · `winner_player_id`(다같이 모드 우승자, 소프트 참조)
 - **rounds** — `room_id` · `question_text` · `target_player_id`(이 라운드의 질문자) · `status`(`collecting`/`scoring`/`revealed`)
 - **answers** — `round_id` · `player_id` · `answer_text` · `score`(`null` 미채점 / `1` 👍 좋아요 / `0` 👎 별로예요) · `is_editing`. `(round_id, player_id)` 유일
 - **answer_reactions** — `round_id` · `answer_id` · `player_id` · `emoji`(❤️ 고정). `(answer_id, player_id)` 유일 — 결과 공개 화면 좋아요 전용
 - **questions_bank** — (레거시) 스키마에만 존재, 앱 미사용
+
+**노래 맞히기 (0004)**
+- **song_rounds** — `room_id` · `setter_id`(출제자) · `status`(`setup`/`ready`/`playing`/`revealed`) · `video_id` · `start_sec` · `duration_sec` · `started_at`(재생 시작 시각) · `deadline_at` · `answer_display`(종료 후에만 채워짐)
+- **song_round_secrets** — 정답·인정 답안. **anon 접근 불가**, RPC(`security definer`)만 읽고 씀
+- **song_hints** · **song_guesses**(정답자 + 받은 점수, 오답은 저장 안 함) · **song_ready**(준비 완료) · **song_hint_requests**(힌트 요청)
 
 라운드 전환은 모두 Postgres RPC 안에서 라운드 row 를 `FOR UPDATE` 로 잠그고 현재 상태를 확인한 뒤 수행하므로,
 여러 클라이언트가 동시에 호출해도 전환은 한 번만 일어난다.

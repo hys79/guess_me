@@ -9,7 +9,13 @@ type TableName =
   | "players"
   | "rounds"
   | "answers"
-  | "answer_reactions";
+  | "answer_reactions"
+  | "song_rounds"
+  | "song_hints"
+  | "song_guesses"
+  | "song_ready"
+  | "song_hint_requests"
+  | "song_attempts";
 
 /** postgres_changes 콜백이 넘겨주는 payload 의 느슨한 형태 */
 interface ChangePayload<Row> {

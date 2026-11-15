@@ -3,6 +3,7 @@
 import { supabase } from "@/lib/supabase/client";
 import { setStoredPlayer, clearStoredPlayer } from "@/lib/player";
 import { NICKNAME_MAX_LENGTH } from "@/lib/constants";
+import type { GameId } from "@/games/registry";
 import type { Player, Room, RoomMode } from "@/lib/supabase/database.types";
 
 export class GameError extends Error {}
@@ -17,11 +18,13 @@ function normalizeNickname(raw: string): string {
 }
 
 interface CreateRoomInput {
+  gameType: GameId;
   hostNickname: string;
   targetScore: number;
   /** null = 무제한 */
   answerTimeLimit: number | null;
-  gameMode: RoomMode;
+  /** guess_me 전용 */
+  gameMode?: RoomMode;
 }
 
 /** 방을 만들고 방장 플레이어를 등록한 뒤 localStorage 에 저장한다. */
@@ -35,9 +38,11 @@ export async function createRoom(
     .from("rooms")
     .insert({
       host_nickname: nickname,
+      game_type: input.gameType,
       target_score: input.targetScore,
       answer_time_limit: input.answerTimeLimit,
-      game_mode: input.gameMode,
+      // game_mode 는 guess_me 전용 컬럼 — 다른 게임이면 보내지 않고 DB 기본값에 맡긴다
+      ...(input.gameMode ? { game_mode: input.gameMode } : {}),
       status: "waiting",
     })
     .select("*")
@@ -134,20 +139,4 @@ export async function leaveRoom(
 ): Promise<void> {
   await supabase.from("players").delete().eq("id", playerId);
   clearStoredPlayer(roomCode);
-}
-
-/** 방장이 게임을 시작한다: rooms.status 를 'question' 으로 전환. */
-export async function startGame(roomId: string): Promise<void> {
-  const { data, error } = await supabase
-    .from("rooms")
-    .update({ status: "question" })
-    .eq("id", roomId)
-    .select("id")
-    .maybeSingle();
-  if (error) throw new GameError(error.message);
-  // RLS 등으로 행이 하나도 갱신되지 않으면 에러 없이 조용히 성공 응답이 온다.
-  // 그러면 화면이 영원히 "시작 중..." 에 멈추므로 여기서 명시적으로 실패 처리한다.
-  if (!data) {
-    throw new GameError("방 시작에 실패했습니다. 새로고침 후 다시 시도하세요.");
-  }
 }

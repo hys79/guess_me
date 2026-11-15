@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { scoreAnswer } from "@/lib/answers";
-import { seededShuffle } from "@/lib/shuffle";
+import { scoreAnswer } from "@/games/guess-me/lib/answers";
+import { seededShuffle } from "@/games/guess-me/lib/shuffle";
 import { useSound } from "@/lib/audio/SoundProvider";
 import type { Answer, AnswerScore } from "@/lib/supabase/database.types";
 

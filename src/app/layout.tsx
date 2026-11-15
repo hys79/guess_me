@@ -2,10 +2,11 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SoundProvider } from "@/lib/audio/SoundProvider";
 import { SettingsButton } from "@/components/audio/SettingsButton";
+import { HUB_NAME, HUB_TAGLINE } from "@/games/registry";
 
 export const metadata: Metadata = {
-  title: "Guess Me!",
-  description: "나를 가장 잘 아는 사람은 누구?",
+  title: HUB_NAME,
+  description: HUB_TAGLINE,
 };
 
 export const viewport: Viewport = {

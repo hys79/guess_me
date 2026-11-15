@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createRandomRound, createCustomRound } from "@/lib/rounds";
+import { createRandomRound, createCustomRound } from "@/games/guess-me/lib/rounds";
 import { GameError } from "@/lib/rooms";
 import { useSound } from "@/lib/audio/SoundProvider";
 

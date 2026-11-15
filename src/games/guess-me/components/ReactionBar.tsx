@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { likeAnswer, unlikeAnswer, LIKE_EMOJI } from "@/lib/reactions";
+import { likeAnswer, unlikeAnswer, LIKE_EMOJI } from "@/games/guess-me/lib/reactions";
 import { useSound } from "@/lib/audio/SoundProvider";
 import type { AnswerReaction } from "@/lib/supabase/database.types";
 

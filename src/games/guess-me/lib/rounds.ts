@@ -2,7 +2,7 @@
 
 import { supabase } from "@/lib/supabase/client";
 import { GameError } from "@/lib/rooms";
-import { pickRandomQuestionSuffix } from "@/lib/questions";
+import { pickRandomQuestionSuffix } from "@/games/guess-me/lib/questions";
 import type { Round } from "@/lib/supabase/database.types";
 
 interface NewRoundBase {

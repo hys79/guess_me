@@ -3,59 +3,22 @@
 import { useMemo } from "react";
 import { supabase } from "@/lib/supabase/client";
 import type {
-  Room,
-  Player,
   Round,
   Answer,
   AnswerReaction,
 } from "@/lib/supabase/database.types";
-import { useRealtimeTable } from "./useRealtimeTable";
+import { useRealtimeTable } from "@/hooks/useRealtimeTable";
 
 /**
- * 한 방의 전체 게임 상태를 실시간 구독한다.
+ * Guess Me 한 방의 "라운드 진행" 상태를 실시간 구독한다.
+ * (방/참가자는 방 페이지 셸의 useRoomBase 가 이미 구독하고 있다)
  *
  * 구독 대상:
- *  - rooms     : 해당 room 1건        (status, target_score 등 변경 반영)
- *  - players   : room_id = roomId     (점수판 실시간 갱신)
  *  - rounds    : room_id = roomId     (라운드 진행/전환 반영)
  *  - answers   : round_id = 현재 라운드 (답변 도착 / 채점 결과 반영)
- *  - reactions : round_id = 현재 라운드 (공개 화면 이모지 반응 실시간 반영)
- *
- * roomId 를 아직 모르면 roomCode 로 방을 먼저 찾도록 useRoomByCode 를 쓴다.
+ *  - reactions : round_id = 현재 라운드 (공개 화면 좋아요 실시간 반영)
  */
-export function useGameState(roomId: string | null) {
-  const room = useRealtimeTable<Room>({
-    table: "rooms",
-    filter: roomId ? { column: "id", value: roomId } : null,
-    enabled: Boolean(roomId),
-    fetchInitial: async () => {
-      if (!roomId) return [];
-      const { data, error } = await supabase
-        .from("rooms")
-        .select("*")
-        .eq("id", roomId)
-        .limit(1);
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const players = useRealtimeTable<Player>({
-    table: "players",
-    filter: roomId ? { column: "room_id", value: roomId } : null,
-    enabled: Boolean(roomId),
-    fetchInitial: async () => {
-      if (!roomId) return [];
-      const { data, error } = await supabase
-        .from("players")
-        .select("*")
-        .eq("room_id", roomId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
+export function useGuessMeState(roomId: string | null) {
   const rounds = useRealtimeTable<Round>({
     table: "rounds",
     filter: roomId ? { column: "room_id", value: roomId } : null,
@@ -111,24 +74,10 @@ export function useGameState(roomId: string | null) {
   });
 
   return {
-    room: room.rows[0] ?? null,
-    players: players.rows,
-    rounds: rounds.rows,
     currentRound,
     answers: answers.rows,
     reactions: reactions.rows,
-    loading:
-      room.loading ||
-      players.loading ||
-      rounds.loading ||
-      answers.loading ||
-      reactions.loading,
-    error:
-      room.error ||
-      players.error ||
-      rounds.error ||
-      answers.error ||
-      reactions.error ||
-      null,
+    loading: rounds.loading || answers.loading || reactions.loading,
+    error: rounds.error || answers.error || reactions.error || null,
   };
 }
