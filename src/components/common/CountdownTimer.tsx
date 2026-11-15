@@ -9,6 +9,8 @@ interface CountdownTimerProps {
   /** 제한 시간(초) */
   seconds: number;
   onExpire?: () => void;
+  /** 서버시각 − 내시각(ms). 기기 시계가 어긋난 경우를 보정한다 (기본 0 = 보정 없음) */
+  offsetMs?: number;
 }
 
 /**
@@ -20,19 +22,21 @@ export function CountdownTimer({
   startedAt,
   seconds,
   onExpire,
+  offsetMs = 0,
 }: CountdownTimerProps) {
   const { play } = useSound();
   const deadline = new Date(startedAt).getTime() + seconds * 1000;
+  // startedAt 이 미래(시작 전 카운트다운 등)여도 전체 시간을 넘겨 보여 주지 않는다
+  const remainingAt = (nowMs: number) =>
+    Math.max(0, Math.min(seconds * 1000, deadline - (nowMs + offsetMs)));
 
-  const [remainingMs, setRemainingMs] = useState(() =>
-    Math.max(0, deadline - Date.now()),
-  );
+  const [remainingMs, setRemainingMs] = useState(() => remainingAt(Date.now()));
   const lastTickSecRef = useRef<number>(Infinity);
 
   useEffect(() => {
     let firedExpire = false;
     const tick = () => {
-      const left = Math.max(0, deadline - Date.now());
+      const left = remainingAt(Date.now());
       setRemainingMs(left);
 
       const sec = Math.ceil(left / 1000);
@@ -49,7 +53,9 @@ export function CountdownTimer({
     tick();
     const id = window.setInterval(tick, 250);
     return () => window.clearInterval(id);
-  }, [deadline, onExpire, play]);
+    // remainingAt 은 deadline/seconds/offsetMs 로만 정해진다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deadline, offsetMs, seconds, onExpire, play]);
 
   const remainingSec = Math.ceil(remainingMs / 1000);
   const ratio = seconds > 0 ? remainingMs / (seconds * 1000) : 0;

@@ -9,6 +9,8 @@ interface RangeFieldProps {
   step?: number;
   unit?: string;
   disabled?: boolean;
+  /** 슬라이더 양 끝 라벨 형식 (예: 초 → "1:23"). 없으면 `${값}${unit}` */
+  format?: (value: number) => string;
   onChange: (value: number) => void;
 }
 
@@ -21,6 +23,7 @@ export function RangeField({
   step = 1,
   unit,
   disabled = false,
+  format,
   onChange,
 }: RangeFieldProps) {
   const clamp = (n: number) => Math.min(max, Math.max(min, n));
@@ -65,14 +68,8 @@ export function RangeField({
         onChange={(e) => onChange(clamp(Number(e.target.value)))}
       />
       <div className="mt-1 flex justify-between text-xs text-slate-400">
-        <span>
-          {min}
-          {unit}
-        </span>
-        <span>
-          {max}
-          {unit}
-        </span>
+        <span>{format ? format(min) : `${min}${unit ?? ""}`}</span>
+        <span>{format ? format(max) : `${max}${unit ?? ""}`}</span>
       </div>
     </div>
   );

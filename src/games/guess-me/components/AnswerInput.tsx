@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { submitAnswer, setAnswerEditing } from "@/lib/answers";
+import { submitAnswer, setAnswerEditing } from "@/games/guess-me/lib/answers";
 import { GameError } from "@/lib/rooms";
 import { useSound } from "@/lib/audio/SoundProvider";
 import type { Answer } from "@/lib/supabase/database.types";

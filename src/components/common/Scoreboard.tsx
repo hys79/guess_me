@@ -7,7 +7,7 @@ interface ScoreboardProps {
   players: Player[];
   targetScore: number;
   mePlayerId: string;
-  /** 현재 질문자 player id (표시되면 🎤 배지). 왕 모드에서는 항상 방장과 같다. */
+  /** 지금 차례인 사람(질문자·출제자) player id (표시되면 🎤 배지) */
   questionerId?: string | null;
 }
 
@@ -85,7 +85,7 @@ export function Scoreboard({
               <span className="flex items-center gap-1 text-slate-700">
                 {p.is_host ? <span aria-hidden title="방장">👑</span> : null}
                 {questionerId && p.id === questionerId ? (
-                  <span aria-hidden title="현재 질문자">
+                  <span aria-hidden title="현재 차례">
                     🎤
                   </span>
                 ) : null}

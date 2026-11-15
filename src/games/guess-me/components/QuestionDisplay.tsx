@@ -1,7 +1,7 @@
 "use client";
 
 import type { Round } from "@/lib/supabase/database.types";
-import { CountdownTimer } from "./CountdownTimer";
+import { CountdownTimer } from "@/components/common/CountdownTimer";
 
 interface QuestionDisplayProps {
   round: Round;

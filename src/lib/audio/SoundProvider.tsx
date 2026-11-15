@@ -18,6 +18,8 @@ interface SoundSettings {
   muted: boolean;
   bgmVolume: number; // 0~1
   sfxVolume: number; // 0~1
+  /** 게임이 직접 들려주는 음악(노래 맞히기의 노래)의 소리 크기, 0~1 */
+  musicVolume: number;
 }
 
 interface SoundContextValue extends SoundSettings {
@@ -27,10 +29,20 @@ interface SoundContextValue extends SoundSettings {
   setBgmVolume: (v: number) => void;
   setSfxVolume: (v: number) => void;
   play: (name: SfxName) => void;
+  /** true 면 배경음악을 멈춘다 (게임 자체가 소리를 쓰는 방 — 예: 노래 맞히기) */
+  setBgmSuppressed: (v: boolean) => void;
+  /** 지금 배경음악이 꺼져 있는가. 설정 창이 "배경음악" 대신 "음악 소리"를 보여 주는 기준 */
+  bgmSuppressed: boolean;
+  setMusicVolume: (v: number) => void;
 }
 
 const STORAGE_KEY = "guess_me:sound";
-const DEFAULTS: SoundSettings = { muted: false, bgmVolume: 0.4, sfxVolume: 0.7 };
+const DEFAULTS: SoundSettings = {
+  muted: false,
+  bgmVolume: 0.4,
+  sfxVolume: 0.7,
+  musicVolume: 1,
+};
 
 /**
  * 배경음악이 효과음보다 너무 크게 들려 실제 출력 게인을 슬라이더 값의 절반으로 낮춘다.
@@ -54,6 +66,7 @@ function loadSettings(): SoundSettings {
       muted: Boolean(parsed.muted),
       bgmVolume: clamp01(parsed.bgmVolume ?? DEFAULTS.bgmVolume),
       sfxVolume: clamp01(parsed.sfxVolume ?? DEFAULTS.sfxVolume),
+      musicVolume: clamp01(parsed.musicVolume ?? DEFAULTS.musicVolume),
     };
   } catch {
     return DEFAULTS;
@@ -63,6 +76,7 @@ function loadSettings(): SoundSettings {
 export function SoundProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<SoundSettings>(DEFAULTS);
   const [bgmAvailable, setBgmAvailable] = useState(false);
+  const [bgmSuppressed, setBgmSuppressed] = useState(false);
   const gestureRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -135,7 +149,7 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
   const syncPlayback = useCallback(() => {
     const el = audioRef.current;
     if (!el) return;
-    if (gestureRef.current && bgmAvailable && !settings.muted) {
+    if (gestureRef.current && bgmAvailable && !settings.muted && !bgmSuppressed) {
       el.volume = bgmTargetVolume;
       void el.play().catch(() => {
         /* 아직 제스처 부족 등 — 다음 기회에 재시도 */
@@ -143,7 +157,7 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
     } else {
       el.pause();
     }
-  }, [bgmAvailable, settings.muted, bgmTargetVolume]);
+  }, [bgmAvailable, settings.muted, bgmSuppressed, bgmTargetVolume]);
 
   useEffect(() => {
     syncPlayback();
@@ -182,6 +196,10 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
     (v: number) => setSettings((s) => ({ ...s, sfxVolume: clamp01(v) })),
     [],
   );
+  const setMusicVolume = useCallback(
+    (v: number) => setSettings((s) => ({ ...s, musicVolume: clamp01(v) })),
+    [],
+  );
   const play = useCallback(
     (name: SfxName) => {
       if (settings.muted || settings.sfxVolume <= 0) return;
@@ -198,8 +216,20 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
       setBgmVolume,
       setSfxVolume: setSfx,
       play,
+      setBgmSuppressed,
+      bgmSuppressed,
+      setMusicVolume,
     }),
-    [settings, bgmAvailable, setMuted, setBgmVolume, setSfx, play],
+    [
+      settings,
+      bgmAvailable,
+      bgmSuppressed,
+      setMuted,
+      setBgmVolume,
+      setSfx,
+      setMusicVolume,
+      play,
+    ],
   );
 
   return (
@@ -219,6 +249,10 @@ export function useSound(): SoundContextValue {
       setBgmVolume: () => undefined,
       setSfxVolume: () => undefined,
       play: () => undefined,
+      setBgmSuppressed: () => undefined,
+      bgmSuppressed: false,
+      musicVolume: 1,
+      setMusicVolume: () => undefined,
     };
   }
   return ctx;

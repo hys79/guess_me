@@ -1,36 +1,28 @@
 -- =============================================================================
--- guess_me : 통합 스키마 (single source of truth)
+-- 0003 : 게임 "Guess Me!" (game_type = 'guess_me')
 --
--- 닉네임 기반 실시간 추측 파티 게임. Supabase Auth 미사용 — player_id 는
--- 클라이언트가 localStorage 에 보관하고, 모든 접근은 anon 키로 이뤄진다.
+-- 나를 가장 잘 아는 사람은? — 질문자에 대한 질문에 다른 사람들이 답을 쓰고,
+-- 질문자가 익명으로 👍/👎 채점하는 게임. 이 게임에 속한 것만 이 파일에 둔다:
+--   테이블  : questions_bank(레거시) · rounds · answers · answer_reactions
+--   rooms   : game_mode · current_questioner_id · winner_player_id 컬럼 추가
+--   RPC     : advance_to_scoring · finalize_round · promote_host · restart_everyone_game
+--   훅      : guess_me_on_leave (질문자가 나갔을 때 승계, 0001 의 탈주 처리에서 호출됨)
 --
--- 이 한 파일이 이전의 0001~0012 마이그레이션을 전부 대체한다(스쿼시).
--- 히스토리는 git 에 남아 있고, 새 환경에서는 이 파일 하나만 실행하면 된다.
--- 전부 여러 번 실행해도 안전하도록(idempotent) 작성했다.
+-- 공통 인프라(rooms / players / 방 코드 / 탈주 공통 처리)는 0001_common.sql.
+-- 여러 번 실행해도 안전하다(idempotent).
 --
--- 완전히 처음부터 다시 만들려면 아래 블록의 주석을 풀어 먼저 실행한다.
--- -----------------------------------------------------------------------------
+-- 이 게임만 처음부터 다시 만들려면:
 -- drop table if exists public.answer_reactions, public.answers, public.rounds,
---                      public.players, public.questions_bank, public.rooms cascade;
+--                      public.questions_bank cascade;
 -- drop function if exists
---   public.gen_room_code(), public.pick_random_question(),
---   public.advance_to_scoring(uuid), public.next_questioner(uuid, uuid),
+--   public.pick_random_question(), public.advance_to_scoring(uuid),
 --   public.finalize_round(uuid), public.promote_host(uuid, uuid),
---   public.restart_everyone_game(uuid), public.handle_player_leave() cascade;
--- drop type if exists public.room_mode, public.round_status, public.room_status;
+--   public.restart_everyone_game(uuid),
+--   public.guess_me_on_leave(public.players, public.rooms, uuid),
+--   public.guess_me_touch_answer_activity() cascade;
+-- drop type if exists public.room_mode, public.round_status;
+-- (rooms 의 game_mode / current_questioner_id / winner_player_id 컬럼은 남는다)
 -- =============================================================================
-
--- gen_random_uuid() 용 (Supabase 에는 보통 이미 활성화되어 있음)
-create extension if not exists "pgcrypto";
-
--- -----------------------------------------------------------------------------
--- ENUM 타입
--- -----------------------------------------------------------------------------
-do $$ begin
-  create type public.room_status as enum
-    ('waiting', 'question', 'scoring', 'reveal', 'finished');
-exception when duplicate_object then null;
-end $$;
 
 do $$ begin
   create type public.round_status as enum ('collecting', 'scoring', 'revealed');
@@ -43,79 +35,22 @@ do $$ begin
 exception when duplicate_object then null;
 end $$;
 
--- =============================================================================
--- 함수: 참가용 방 코드 생성 (테이블보다 먼저 — rooms.code 의 default 로 쓰인다)
--- 헷갈리는 글자(0/O, 1/I) 를 제외한 4자리 코드. 충돌 시 재시도.
--- =============================================================================
-create or replace function public.gen_room_code()
-returns text
-language plpgsql
-as $$
-declare
-  alphabet constant text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  candidate text;
-  i int;
-begin
-  loop
-    candidate := '';
-    for i in 1..4 loop
-      candidate := candidate || substr(alphabet, 1 + floor(random() * length(alphabet))::int, 1);
-    end loop;
-    exit when not exists (select 1 from public.rooms where code = candidate);
-  end loop;
-  return candidate;
-end;
-$$;
+-- -----------------------------------------------------------------------------
+-- rooms 에 이 게임 전용 컬럼 추가
+-- 아래 두 소프트 참조는 FK 를 걸지 않는다. players 행 삭제 시 FK 내부 트리거와
+-- 탈주 트리거의 실행 순서에 의존하지 않기 위해서다(정합성은 guess_me_on_leave 가 관리).
+-- -----------------------------------------------------------------------------
+alter table public.rooms add column if not exists game_mode public.room_mode not null default 'king';
+alter table public.rooms add column if not exists current_questioner_id uuid;
+alter table public.rooms add column if not exists winner_player_id uuid;
+
+comment on column public.rooms.game_mode is '[guess_me · song 공용] king=왕 모드 / everyone=다같이 모드';
+comment on column public.rooms.current_questioner_id is '[guess_me 전용] 현재 라운드의 질문자(=답변 대상) player id. 소프트 참조.';
+comment on column public.rooms.winner_player_id is '[guess_me · song 공용] 목표 점수 도달로 게임이 끝났을 때의 우승자. 소프트 참조.';
 
 -- =============================================================================
 -- 테이블
 -- =============================================================================
-
--- rooms : 게임 방
-create table if not exists public.rooms (
-  id                uuid         primary key default gen_random_uuid(),
-  code              text         not null unique default public.gen_room_code(),
-  host_nickname     text         not null,
-  target_score      smallint     not null default 10
-                                 check (target_score between 1 and 20),
-  answer_time_limit smallint     null                       -- null = 무제한
-                                 check (answer_time_limit between 5 and 100),
-  status            public.room_status not null default 'waiting',
-  game_mode         public.room_mode   not null default 'king',
-  -- 아래 두 컬럼은 FK 를 걸지 않은 "소프트 참조"다. players 행 삭제 시 FK 내부
-  -- 트리거와 handle_player_leave 트리거의 실행 순서에 의존하지 않기 위해서다
-  -- (정합성은 handle_player_leave 가 직접 관리한다).
-  current_questioner_id uuid     null,
-  winner_player_id      uuid     null,
-  created_at        timestamptz  not null default now(),
-  -- 마지막 활동 시각. touch_room_activity 트리거가 참가/라운드/답변 때 갱신한다.
-  -- 방치된 방 정리(0002_cleanup_cron.sql)의 기준값.
-  last_active_at    timestamptz  not null default now()
-);
-
-comment on column public.rooms.code is '참가용 짧은 코드';
-comment on column public.rooms.answer_time_limit is '답변 제한 시간(초, 5~100). null 이면 무제한.';
-comment on column public.rooms.current_questioner_id is '현재 라운드의 질문자(=답변 대상) player id. 소프트 참조.';
-comment on column public.rooms.winner_player_id is '목표 점수 도달로 게임이 끝났을 때의 우승자. 소프트 참조.';
-comment on column public.rooms.last_active_at is '마지막 활동 시각. 2시간 이상 조용하면 cron 이 방을 삭제한다.';
-
--- players : 방 참가자
-create table if not exists public.players (
-  id         uuid        primary key default gen_random_uuid(),
-  room_id    uuid        not null references public.rooms (id) on delete cascade,
-  nickname   text        not null,
-  score      integer     not null default 0,
-  is_host    boolean     not null default false,
-  created_at timestamptz not null default now(),
-  unique (room_id, nickname)
-);
-
-create index if not exists players_room_id_idx on public.players (room_id);
--- 방 당 방장은 한 명
-create unique index if not exists players_one_host_per_room_idx
-  on public.players (room_id)
-  where is_host;
-
 -- questions_bank : 기본 질문 목록 (레거시 — 앱은 이제 public/questions.csv 를
 -- 직접 읽는다. pick_random_question() 폴백용으로만 남겨 둠)
 create table if not exists public.questions_bank (
@@ -169,25 +104,9 @@ comment on table public.answer_reactions is
 create index if not exists answer_reactions_round_id_idx  on public.answer_reactions (round_id);
 create index if not exists answer_reactions_answer_id_idx on public.answer_reactions (answer_id);
 
--- rooms.code 는 위에서 인라인 default 로 만들어지지만, 예전 스키마로 만들어진
--- 테이블에는 default 가 없을 수 있으므로 한 번 더 못 박는다.
-alter table public.rooms alter column code set default public.gen_room_code();
-
 -- -----------------------------------------------------------------------------
 -- 예전 스키마로 이미 만들어진 DB 를 현재 정의로 맞추는 보정
--- (create table if not exists 는 기존 테이블을 건드리지 않으므로 필요하다)
 -- -----------------------------------------------------------------------------
-
--- answer_time_limit: 첫 배포본 상한은 60 이었다 → 100 으로.
-alter table public.rooms drop constraint if exists rooms_answer_time_limit_check;
-alter table public.rooms add constraint rooms_answer_time_limit_check
-  check (answer_time_limit between 5 and 100);
-
--- game_mode / 소프트 참조 컬럼이 없던 시절 대비
-alter table public.rooms add column if not exists game_mode public.room_mode not null default 'king';
-alter table public.rooms add column if not exists current_questioner_id uuid;
-alter table public.rooms add column if not exists winner_player_id uuid;
-alter table public.rooms add column if not exists last_active_at timestamptz not null default now();
 
 -- answers.is_editing 가 없던 시절 대비
 alter table public.answers add column if not exists is_editing boolean not null default false;
@@ -266,33 +185,6 @@ begin
   update public.rounds set status = 'scoring' where id = p_round_id;
   update public.rooms  set status = 'scoring' where id = v_room_id;
 end;
-$$;
-
--- 참가 순서(created_at)상 p_current_id 다음 플레이어. 없으면(마지막이면) 맨 처음으로.
-create or replace function public.next_questioner(p_room_id uuid, p_current_id uuid)
-returns uuid
-language sql
-stable
-as $$
-  with cur as (
-    select created_at, id from public.players where id = p_current_id
-  )
-  select coalesce(
-    (
-      select p.id
-      from public.players p, cur
-      where p.room_id = p_room_id
-        and (p.created_at, p.id) > (cur.created_at, cur.id)
-      order by p.created_at asc, p.id asc
-      limit 1
-    ),
-    (
-      select id from public.players
-      where room_id = p_room_id
-      order by created_at asc, id asc
-      limit 1
-    )
-  );
 $$;
 
 -- scoring -> revealed : 점수 반영 + 모드별 다음 단계 결정
@@ -456,60 +348,37 @@ begin
 end;
 $$;
 
--- 플레이어 탈주 처리 (관리자 승계 + 질문자 승계, 왕/다같이 모드 공통)
-create or replace function public.handle_player_leave()
-returns trigger
+-- -----------------------------------------------------------------------------
+-- 탈주 훅 — 0001 의 handle_player_leave 가 "<game_type>_on_leave" 규약으로 호출한다.
+-- 질문자 승계 (왕/다같이 모드 공통). 방장 승계는 공통 처리가 이미 끝낸 상태다.
+-- -----------------------------------------------------------------------------
+create or replace function public.guess_me_on_leave(
+  p_old public.players,
+  p_room public.rooms,
+  p_new_host uuid
+)
+returns void
 language plpgsql
 as $$
 declare
-  v_room record;
-  v_new_host uuid;
   v_new_questioner uuid;
-  v_remaining int;
 begin
-  select * into v_room from public.rooms where id = old.room_id for update;
-  if not found then
-    return old;
-  end if;
-
-  select count(*) into v_remaining from public.players where room_id = old.room_id;
-  if v_remaining = 0 then
-    -- 마지막 참가자가 나갔다 → 방을 통째로 삭제(rounds/answers/answer_reactions 는
-    -- FK on delete cascade). 빈 방을 남겨 두면 영구히 쌓이기만 한다.
-    delete from public.rooms where id = old.room_id;
-    return old;
-  end if;
-
-  -- 관리자(방장) 승계: 나간 사람이 관리자였으면 최고 점수(동점 랜덤)에게
-  if old.is_host then
-    select id into v_new_host
-    from public.players where room_id = old.room_id
-    order by score desc, random() limit 1;
-
-    if v_new_host is not null then
-      update public.players set is_host = true where id = v_new_host;
-      update public.rooms set host_nickname = (
-        select nickname from public.players where id = v_new_host
-      ) where id = old.room_id;
-    end if;
-  end if;
-
   -- 질문자 승계: 나간 사람이 현재 질문자였으면 (또는 아직 지정 전인데 관리자였으면)
-  if v_room.current_questioner_id = old.id
-     or (v_room.current_questioner_id is null and old.is_host) then
-    if v_room.game_mode = 'king' then
-      v_new_questioner := v_new_host;
+  if p_room.current_questioner_id = p_old.id
+     or (p_room.current_questioner_id is null and p_old.is_host) then
+    if p_room.game_mode = 'king' then
+      v_new_questioner := p_new_host;
     else
       select p.id into v_new_questioner
       from public.players p
-      where p.room_id = old.room_id
-        and (p.created_at, p.id) > (old.created_at, old.id)
+      where p.room_id = p_old.room_id
+        and (p.created_at, p.id) > (p_old.created_at, p_old.id)
       order by p.created_at asc, p.id asc
       limit 1;
 
       if v_new_questioner is null then
         select id into v_new_questioner
-        from public.players where room_id = old.room_id
+        from public.players where room_id = p_old.room_id
         order by created_at asc, id asc limit 1;
       end if;
     end if;
@@ -520,40 +389,20 @@ begin
           when status not in ('waiting', 'finished') then 'waiting'
           else status
         end
-    where id = old.room_id;
+    where id = p_old.room_id;
   end if;
-
-  return old;
 end;
 $$;
 
--- 옛 트리거/함수 정리 후 재생성
-drop trigger  if exists players_reassign_host on public.players;
-drop trigger  if exists players_handle_leave  on public.players;
-drop function if exists public.reassign_host_on_leave();
-
-create trigger players_handle_leave
-  after delete on public.players
-  for each row execute function public.handle_player_leave();
-
--- -----------------------------------------------------------------------------
--- 방 활동 시각(rooms.last_active_at) 갱신
--- 참가 / 라운드 생성·상태전환 / 답변 제출을 "활동"으로 본다. 채점(answers UPDATE)
--- 은 굳이 안 봐도 라운드 상태전환이 몇 분 안에 일어나므로 신호가 충분하다.
--- -----------------------------------------------------------------------------
-create or replace function public.touch_room_activity()
+-- 답변 제출도 "활동"이다 (answers 에는 room_id 가 없어 전용 트리거 함수를 쓴다)
+create or replace function public.guess_me_touch_answer_activity()
 returns trigger
 language plpgsql
 as $$
 declare
   v_room_id uuid;
 begin
-  if tg_table_name = 'answers' then
-    select room_id into v_room_id from public.rounds where id = new.round_id;
-  else
-    v_room_id := new.room_id;   -- players, rounds
-  end if;
-
+  select room_id into v_room_id from public.rounds where id = new.round_id;
   if v_room_id is not null then
     update public.rooms set last_active_at = now() where id = v_room_id;
   end if;
@@ -561,13 +410,8 @@ begin
 end;
 $$;
 
-drop trigger if exists players_touch_activity on public.players;
 drop trigger if exists rounds_touch_activity  on public.rounds;
 drop trigger if exists answers_touch_activity on public.answers;
-
-create trigger players_touch_activity
-  after insert on public.players
-  for each row execute function public.touch_room_activity();
 
 create trigger rounds_touch_activity
   after insert or update on public.rounds
@@ -575,40 +419,31 @@ create trigger rounds_touch_activity
 
 create trigger answers_touch_activity
   after insert on public.answers
-  for each row execute function public.touch_room_activity();
+  for each row execute function public.guess_me_touch_answer_activity();
 
-grant execute on function public.gen_room_code()                  to anon;
 grant execute on function public.pick_random_question()           to anon;
 grant execute on function public.advance_to_scoring(uuid)         to anon;
-grant execute on function public.next_questioner(uuid, uuid)      to anon;
 grant execute on function public.finalize_round(uuid)             to anon;
 grant execute on function public.promote_host(uuid, uuid)         to anon;
 grant execute on function public.restart_everyone_game(uuid)      to anon;
 
+-- 탈주 훅은 handle_player_leave(security definer)만 부르면 된다 — 직접 호출 차단
+revoke execute on function public.guess_me_on_leave(public.players, public.rooms, uuid)
+  from public, anon, authenticated;
+
 -- =============================================================================
 -- RLS
--- 인증이 없으므로 anon 키로 모든 접근이 이뤄진다. 파티 게임 특성상 anon 에게
--- 전체 CRUD 를 허용한다(questions_bank 만 읽기 전용). 프로덕션에서 악용 방지가
--- 필요하면 쓰기를 Edge Function / RPC 뒤로 옮기는 것을 권장.
 -- =============================================================================
-alter table public.rooms            enable row level security;
-alter table public.players          enable row level security;
 alter table public.questions_bank   enable row level security;
 alter table public.rounds           enable row level security;
 alter table public.answers          enable row level security;
 alter table public.answer_reactions enable row level security;
 
-drop policy if exists "anon full access - rooms"            on public.rooms;
-drop policy if exists "anon full access - players"          on public.players;
 drop policy if exists "anon read - questions_bank"          on public.questions_bank;
 drop policy if exists "anon full access - rounds"           on public.rounds;
 drop policy if exists "anon full access - answers"          on public.answers;
 drop policy if exists "anon full access - answer_reactions" on public.answer_reactions;
 
-create policy "anon full access - rooms"
-  on public.rooms for all to anon using (true) with check (true);
-create policy "anon full access - players"
-  on public.players for all to anon using (true) with check (true);
 create policy "anon read - questions_bank"
   on public.questions_bank for select to anon using (true);
 create policy "anon full access - rounds"
@@ -619,12 +454,8 @@ create policy "anon full access - answer_reactions"
   on public.answer_reactions for all to anon using (true) with check (true);
 
 -- =============================================================================
--- Realtime
--- 변경 사항을 구독자에게 브로드캐스트. REPLICA IDENTITY FULL 로 UPDATE/DELETE
--- 이벤트에서도 전체 row 를 받는다. (questions_bank 는 실시간 대상 아님)
+-- Realtime (questions_bank 는 실시간 대상 아님)
 -- =============================================================================
-alter table public.rooms            replica identity full;
-alter table public.players          replica identity full;
 alter table public.rounds           replica identity full;
 alter table public.answers          replica identity full;
 alter table public.answer_reactions replica identity full;
@@ -633,7 +464,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['rooms', 'players', 'rounds', 'answers', 'answer_reactions'] loop
+  foreach t in array array['rounds', 'answers', 'answer_reactions'] loop
     if not exists (
       select 1 from pg_publication_tables
       where pubname = 'supabase_realtime'

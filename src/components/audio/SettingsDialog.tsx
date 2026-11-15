@@ -109,18 +109,37 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
             </button>
           </div>
 
-          <VolumeRow
-            label="배경음악"
-            value={sound.bgmVolume}
-            onChange={sound.setBgmVolume}
-            disabled={sound.muted}
-          />
-          {!sound.bgmAvailable ? (
-            <p className="-mt-3 text-xs text-slate-400">
-              배경음악 파일이 아직 없습니다. <code>public/audio/bgm.mp3</code> 에
-              mp3 를 넣으면 자동 재생됩니다.
-            </p>
-          ) : null}
+          {sound.bgmSuppressed ? (
+            <>
+              {/* 게임이 자기 음악(노래 맞히기의 노래)을 들려주는 방: 배경음악은 꺼져 있고,
+                  이 슬라이더는 그 노래의 소리 크기를 조절한다 */}
+              <VolumeRow
+                label="음악 소리"
+                value={sound.musicVolume}
+                onChange={sound.setMusicVolume}
+                disabled={sound.muted}
+              />
+              <p className="-mt-3 text-xs text-slate-400">
+                문제로 나오는 노래의 소리 크기예요. 아이폰은 브라우저가 소리 크기
+                조절을 막아서, 기기의 음량 버튼으로 조절해 주세요.
+              </p>
+            </>
+          ) : (
+            <>
+              <VolumeRow
+                label="배경음악"
+                value={sound.bgmVolume}
+                onChange={sound.setBgmVolume}
+                disabled={sound.muted}
+              />
+              {!sound.bgmAvailable ? (
+                <p className="-mt-3 text-xs text-slate-400">
+                  배경음악 파일이 아직 없습니다. <code>public/audio/bgm.mp3</code> 에
+                  mp3 를 넣으면 자동 재생됩니다.
+                </p>
+              ) : null}
+            </>
+          )}
 
           <VolumeRow
             label="효과음"

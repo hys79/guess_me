@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { restartEveryoneGame, promoteHost } from "@/lib/rounds";
+import { restartEveryoneGame, promoteHost } from "@/games/guess-me/lib/rounds";
 import { GameError } from "@/lib/rooms";
-import { fetchGameAward, type GameAward } from "@/lib/awards";
-import { Scoreboard } from "./Scoreboard";
+import { fetchGameAward, type GameAward } from "@/games/guess-me/lib/awards";
+import { Scoreboard } from "@/components/common/Scoreboard";
 import type { Player, RoomMode } from "@/lib/supabase/database.types";
 
 interface GameFinishedProps {
