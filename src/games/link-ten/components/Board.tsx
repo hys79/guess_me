@@ -1,27 +1,57 @@
 "use client";
 
 import { memo, useMemo, type PointerEvent } from "react";
-import { FIVE_LINK } from "../rules";
+import { LINK_TEN } from "../rules";
 import type { Cell, Grid, Tile } from "../engine";
-import type { Floater, Ghost } from "../hooks/useFiveLink";
+import type { Floater, Ghost } from "../hooks/useLinkTen";
 
-const { rows, cols } = FIVE_LINK;
+const { rows, cols } = LINK_TEN;
 
 /**
- * 숫자별 색 — 흰색에 가까운 파스텔 무지개. 배경은 거의 흰색, 옅은 테두리와 또렷한 숫자색으로 구분한다.
- * (Tailwind 가 클래스를 찾을 수 있게 전부 문자열 그대로 적는다)
+ * 숫자별 3D 블록 색 — 파스텔 무지개.
+ * top = 윗면 하이라이트, base = 본색, edge = 블록 아랫면(두께) 색, text = 숫자 색.
+ * 위에서 아래로 밝은색 → 본색 → 살짝 짙은색으로 번지는 그라데이션 + 안쪽 빛/그림자 + 아랫면 두께 +
+ * 바닥 그림자 + 윗면 광택으로 도톰하게 솟아오른 느낌을 낸다.
  */
-const TILE_COLORS: Record<number, string> = {
-  1: "bg-rose-50 border-rose-200 text-rose-500",
-  2: "bg-orange-50 border-orange-200 text-orange-500",
-  3: "bg-amber-50 border-amber-200 text-amber-600",
-  4: "bg-lime-50 border-lime-200 text-lime-600",
-  5: "bg-emerald-50 border-emerald-200 text-emerald-500",
-  6: "bg-cyan-50 border-cyan-200 text-cyan-600",
-  7: "bg-sky-50 border-sky-200 text-sky-500",
-  8: "bg-indigo-50 border-indigo-200 text-indigo-500",
-  9: "bg-fuchsia-50 border-fuchsia-200 text-fuchsia-500",
+const TILE_PALETTE: Record<number, { top: string; base: string; edge: string; text: string }> = {
+  1: { top: "#ffe6ea", base: "#ffb8c6", edge: "#e07a92", text: "#b3304d" },
+  2: { top: "#ffeddf", base: "#ffc8a0", edge: "#e0925a", text: "#b3521a" },
+  3: { top: "#fff7cf", base: "#ffe582", edge: "#dfb93f", text: "#8c6a00" },
+  4: { top: "#f1fcd0", base: "#d0ef8c", edge: "#9ac450", text: "#587a10" },
+  5: { top: "#dcf9e9", base: "#a3e7c3", edge: "#62bc90", text: "#1d7a4e" },
+  6: { top: "#daf7fc", base: "#9ee3f1", edge: "#58b7cb", text: "#16708a" },
+  7: { top: "#e0f0ff", base: "#a9d3fb", edge: "#639fdb", text: "#1f5f9e" },
+  8: { top: "#e8e8ff", base: "#bdbaf6", edge: "#8985d8", text: "#4540a8" },
+  9: { top: "#fae3fc", base: "#e8b4f0", edge: "#b97ac6", text: "#8a2e9b" },
 };
+
+/** 두 #rrggbb 색을 t(0~1) 비율로 섞는다 — 아랫부분 그림자색을 만들 때 쓴다 */
+function mix(a: string, b: string, t: number) {
+  const n = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  const c = (i: number) => Math.round(n(a, i) + (n(b, i) - n(a, i)) * t);
+  return `rgb(${c(0)}, ${c(1)}, ${c(2)})`;
+}
+
+/** 블록 한 칸의 면 스타일. 선택되면 눌려 들어간 모양 + 테두리(합 10 이면 황금빛으로 빛남). */
+function faceStyle(v: number, selected: boolean, valid: boolean): React.CSSProperties {
+  const p = TILE_PALETTE[v];
+  const shade = mix(p.base, p.edge, 0.4);
+  const ring = selected
+    ? valid
+      ? "0 0 0 3px #fbbf24, 0 0 14px 4px rgba(251,191,36,0.9), "
+      : "0 0 0 2px #2563eb, "
+    : "";
+  const body = selected
+    ? `inset 0 2px 1px rgba(255,255,255,0.7), inset 0 -2px 3px ${shade}, 0 1px 0 ${p.edge}`
+    : `inset 0 2px 1px rgba(255,255,255,0.9), inset 0 -4px 5px ${shade}, 0 3px 0 ${p.edge}, 0 6px 7px rgba(15,23,42,0.18)`;
+  return {
+    background: `linear-gradient(180deg, ${p.top} 0%, ${p.base} 56%, ${shade} 100%)`,
+    color: p.text,
+    textShadow: "0 1px 0 rgba(255,255,255,0.75), 0 -1px 0 rgba(0,0,0,0.05)",
+    boxShadow: ring + body,
+    transform: selected ? "translateY(3px) scale(0.94)" : undefined,
+  };
+}
 
 /** 제거 때 튀는 조각 색 */
 const PARTICLE_COLORS: Record<number, string> = {
@@ -39,7 +69,7 @@ const PARTICLE_COLORS: Record<number, string> = {
 interface BoardProps {
   grid: Grid;
   path: Cell[];
-  /** 지금 선택이 확정 가능한 합(5의 배수)인가 → 테두리를 빛나게 */
+  /** 지금 선택이 확정 가능한 합(10)인가 → 테두리를 빛나게 */
   valid: boolean;
   ghosts: Ghost[];
   floaters: Floater[];
@@ -81,16 +111,12 @@ function TileView({
 }) {
   // 낙하 시작 지연은 타일이 떨어질 때 정해져 있다(아래 칸부터, 왼쪽 열부터 물결처럼)
   const delayMs = tile.delay ?? 0;
-  const state = selected
-    ? valid
-      ? "scale-90 ring-[3px] ring-amber-400 shadow-[0_0_14px_3px_rgba(251,191,36,0.9)]"
-      : "scale-90 ring-2 ring-primary-500"
-    : "";
   const dropping = !ghost && tile.drop ? tile.drop : 0;
   const dur = dropDuration(dropping);
   return (
+    // 아래쪽 여백(pb)은 블록의 두께(아랫면)와 그림자가 들어갈 자리
     <div
-      className="relative h-full w-full p-[3px]"
+      className="relative h-full w-full px-[3px] pb-[6px] pt-[3px]"
       style={
         dropping
           ? ({
@@ -110,9 +136,16 @@ function TileView({
         />
       )}
       <div
-        className={`relative flex h-full w-full items-center justify-center rounded-xl border text-[clamp(1rem,5.4vw,1.6rem)] font-extrabold tabular-nums shadow-[0_1px_0_rgba(15,23,42,0.04)] transition-[transform,box-shadow] duration-100 ${TILE_COLORS[tile.v]} ${state} ${ghost ? "animate-tile-out" : ""}`}
+        data-sel={selected ? (valid ? "valid" : "on") : undefined}
+        className={`relative flex h-full w-full items-center justify-center overflow-hidden rounded-[14px] text-[clamp(1rem,5.4vw,1.6rem)] font-extrabold tabular-nums transition-[transform,box-shadow] duration-100 ${ghost ? "animate-tile-out" : ""}`}
+        style={faceStyle(tile.v, selected, valid)}
       >
-        {tile.v}
+        {/* 윗면 광택 */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-x-[9%] top-[5%] h-[38%] rounded-full bg-gradient-to-b from-white/80 to-white/0"
+        />
+        <span className="relative">{tile.v}</span>
       </div>
     </div>
   );
@@ -186,7 +219,7 @@ function BoardImpl({
 
   return (
     <div
-      className={`relative aspect-square w-full touch-none select-none overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 ${shaking ? "animate-board-shake" : ""}`}
+      className={`relative aspect-square w-full touch-none select-none overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-200 to-slate-100 shadow-inner ${shaking ? "animate-board-shake" : ""}`}
       onPointerDown={(e) => {
         if (!interactive) return;
         e.currentTarget.setPointerCapture(e.pointerId);

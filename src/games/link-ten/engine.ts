@@ -1,8 +1,8 @@
 /**
- * Five Link — 순수 게임 엔진 (React/DOM 의존 없음).
+ * Link Ten — 순수 게임 엔진 (React/DOM 의존 없음).
  * 판 생성, 경로 규칙, 제거 + 중력 + 리필, 가능한 수 탐색을 담당한다.
  */
-import { FIVE_LINK, isValidSum } from "./rules";
+import { LINK_TEN, isValidSum } from "./rules";
 
 export interface Tile {
   /** 렌더 키 — 판 안에서 유일, 한 번 정해지면 안 바뀐다(떨어지는 애니메이션용) */
@@ -54,7 +54,7 @@ export function hashSeed(text: string): number {
 }
 
 function randomValue(rng: Rng): number {
-  const { minValue, maxValue } = FIVE_LINK;
+  const { minValue, maxValue } = LINK_TEN;
   return minValue + Math.floor(rng() * (maxValue - minValue + 1));
 }
 
@@ -67,7 +67,7 @@ export class Spawner {
   private nextId = 1;
 
   constructor(seed: number) {
-    this.streams = Array.from({ length: FIVE_LINK.cols }, (_, c) =>
+    this.streams = Array.from({ length: LINK_TEN.cols }, (_, c) =>
       mulberry32(hashSeed(`${seed}:${c}`)),
     );
   }
@@ -94,7 +94,7 @@ export class Spawner {
 // ---------------------------------------------------------------------------
 
 export function createGrid(spawner: Spawner): Grid {
-  const { rows, cols } = FIVE_LINK;
+  const { rows, cols } = LINK_TEN;
   const grid: Grid = Array.from({ length: rows }, () => new Array<Tile>(cols));
   for (let c = 0; c < cols; c += 1) {
     for (let r = 0; r < rows; r += 1) {
@@ -123,7 +123,7 @@ export function isAdjacent(a: Cell, b: Cell): boolean {
  *  - 대각선 줄이 이미 그은 반대쪽 대각선 줄과 X 자로 엇갈리는 것도 불가
  */
 export function canExtend(path: readonly Cell[], next: Cell): boolean {
-  const { rows, cols } = FIVE_LINK;
+  const { rows, cols } = LINK_TEN;
   if (next.r < 0 || next.r >= rows || next.c < 0 || next.c >= cols) return false;
   if (path.length === 0) return true;
   const last = path[path.length - 1];
@@ -162,7 +162,7 @@ export interface ClearResult {
 }
 
 export function clearPath(grid: Grid, path: readonly Cell[], spawner: Spawner): ClearResult {
-  const { rows, cols } = FIVE_LINK;
+  const { rows, cols } = LINK_TEN;
   const removedKey = new Set(path.map((p) => p.r * cols + p.c));
   const removed = path.map(({ r, c }) => ({ tile: grid[r][c], r, c }));
 
@@ -211,13 +211,13 @@ export function clearPath(grid: Grid, path: readonly Cell[], spawner: Spawner): 
  * 이어 만들 수 있는 유효 경로(합 10)가 하나라도 있는가.
  * 타일이 모두 1 이상이라 합이 10을 넘으면 더 볼 필요가 없고, 길이도 최대 10칸이다.
  */
-export function hasMove(grid: Grid, maxLen: number = FIVE_LINK.targetSum): boolean {
-  const { rows, cols } = FIVE_LINK;
+export function hasMove(grid: Grid, maxLen: number = LINK_TEN.targetSum): boolean {
+  const { rows, cols } = LINK_TEN;
   const path: Cell[] = [];
 
   const dfs = (sum: number): boolean => {
     if (isValidSum(sum, path.length)) return true;
-    if (sum >= FIVE_LINK.targetSum || path.length >= maxLen) return false;
+    if (sum >= LINK_TEN.targetSum || path.length >= maxLen) return false;
     const last = path[path.length - 1];
     for (let dr = -1; dr <= 1; dr += 1) {
       for (let dc = -1; dc <= 1; dc += 1) {
@@ -246,7 +246,7 @@ export function hasMove(grid: Grid, maxLen: number = FIVE_LINK.targetSum): boole
 
 /** 막혔을 때: 모든 타일을 새로 뽑는다(드문 경우). 가능한 수가 생길 때까지 반복. */
 export function reshuffle(grid: Grid, spawner: Spawner): Grid {
-  const { rows, cols } = FIVE_LINK;
+  const { rows, cols } = LINK_TEN;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const rng = mulberry32((Date.now() + attempt * 977) >>> 0);
     const next: Grid = Array.from({ length: rows }, (_, r) =>

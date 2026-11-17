@@ -15,9 +15,9 @@ export type SfxName =
   | "win"
   | "tick"
   | "yourTurn" // 다같이 모드: 내 차례가 됐을 때
-  | "linkStep" // Five Link: 타일을 한 칸 이을 때 (level = 지금까지 이은 칸 수)
-  | "linkClear" // Five Link: 제거 성공 (level = 콤보 횟수, 1~5단계로 제한되어 단계가 높을수록 웅장)
-  | "linkFail"; // Five Link: 합이 안 맞아 취소
+  | "linkStep" // Link Ten: 타일을 한 칸 이을 때 (level = 지금까지 이은 칸 수)
+  | "linkClear" // Link Ten: 제거 성공 (level = 콤보 횟수, 1~5단계로 제한되어 단계가 높을수록 웅장)
+  | "linkFail"; // Link Ten: 합이 안 맞아 취소
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { FIVE_LINK, comboStage, moveScore } from "../rules";
+import { LINK_TEN, comboStage, moveScore } from "../rules";
 
 interface HudProps {
   score: number;
@@ -12,13 +12,13 @@ interface HudProps {
 }
 
 export function Hud({ score, timeLeftMs, streak, comboLeftMs, best }: HudProps) {
-  const total = FIVE_LINK.durationSec * 1000;
+  const total = LINK_TEN.durationSec * 1000;
   const pct = Math.max(0, Math.min(100, (timeLeftMs / total) * 100));
   const secs = Math.ceil(timeLeftMs / 1000);
   const low = secs <= 10;
   const comboOn = comboLeftMs > 0 && streak >= 1;
   const stage = comboStage(streak);
-  const maxed = stage >= FIVE_LINK.maxCombo;
+  const maxed = stage >= LINK_TEN.maxCombo;
   // 콤보가 이어지면 다음 성공이 받을 점수
   const nextPoints = moveScore(streak + 1);
 
@@ -48,7 +48,7 @@ export function Hud({ score, timeLeftMs, streak, comboLeftMs, best }: HudProps) 
               <span className="mt-0.5 h-1 w-full overflow-hidden rounded-full bg-amber-200">
                 <span
                   className="block h-full bg-amber-500"
-                  style={{ width: `${(comboLeftMs / FIVE_LINK.comboWindowMs) * 100}%` }}
+                  style={{ width: `${(comboLeftMs / LINK_TEN.comboWindowMs) * 100}%` }}
                 />
               </span>
             </div>

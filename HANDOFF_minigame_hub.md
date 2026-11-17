@@ -48,7 +48,7 @@ src/
     ui.ts                    game id → 화면/행동 구현 매핑 (클라이언트 전용)
     guess-me/                1호 (기존 코드를 그대로 이동)
     song/                    2호
-    five-link/               3호 (1인용) — 방 없이 /solo/five-link. 규칙은 아래 "Five Link" 절
+    link-ten/                3호 (1인용) — 방 없이 /solo/link-ten. 규칙은 아래 "Link Ten" 절
   components/common/         Lobby · Scoreboard · CountdownTimer · RoomSettingsFields
   hooks/                     useRealtimeTable · useRoomByCode · useRoomBase
   lib/                       rooms(생성/참가/나가기) · player · constants · audio · supabase
@@ -57,7 +57,7 @@ supabase/migrations/
   0002_cleanup_cron.sql      2시간 방치 방 삭제 (pg_cron)
   0003_game_guess_me.sql     Guess Me 전용 (테이블·RPC·탈주 훅)
   0004_game_song.sql         노래 맞히기 전용
-  0005_game_five_link.sql    Five Link 하루 랭킹 (rooms/players 와 무관)
+  0005_game_five_link.sql    Link Ten 하루 랭킹 (rooms/players 와 무관)
 ```
 
 **새 게임 추가 절차**: ① `registry.ts` 에 한 줄 ② `src/games/<id>/` 모듈(`ui.ts` 에서 `GameUI` 구현) ③ `games/ui.ts` 에 한 줄 ④ `supabase/migrations/` 에 게임 SQL 파일 1개. 공통 파일은 건드리지 않는다.
@@ -98,14 +98,16 @@ supabase/migrations/
 - `song_rounds`/`song_hints`/`song_guesses` 는 anon 읽기 전용, 쓰기는 RPC 로만. `answer_display` 는 라운드 종료 후에만 채워짐.
 - 한계: 영상 id 는 재생 때문에 클라이언트가 알아야 하므로 개발자 도구로 제목을 알아낼 수 있다. 친구끼리 쓰는 게임 전제.
 
-## 4-2. Five Link (1인용) — 확정 설계 (2026-11-17, 브랜치 `hub` 에 미커밋/미배포 상태로 구현)
+## 4-2. Link Ten (1인용) — 확정 설계 (2026-11-17, main 에 병합·배포됨)
+
+> 이름은 처음 "Five Link" 였다가 "Link Ten"(합 10 규칙)으로 바꿨다. 코드/주소는 `link-ten` 으로 바꿨지만 **DB 객체(`five_link_scores`·`five_link_today`·`five_link_submit`, 파일명 `0005_game_five_link.sql`)와 localStorage 키(`five_link:*`)는 이미 운영에 적용돼 있어 옛 이름 그대로 둔다**(바꾸면 마이그레이션 + 사용자 기록 손실).
 
 - **규칙**: 8×8 판에 1~9 타일. 누른 채 드래그로 8방향(대각선 포함) 인접 타일을 이어 붙인다. 같은 타일 재방문 불가, 대각선 줄 X 자 교차 불가, 직전 칸으로 돌아가면 한 칸 취소. **합이 정확히 10**이면 선택 타일 테두리가 빛나고(합 숫자는 표시하지 않음), 손을 떼면 제거. 합이 안 맞으면 취소(흔들림). 제거된 자리는 위에서 새 타일이 떨어져 **항상 꽉 찬다**. 60초, 힌트 없음. (초기 설계는 "5의 배수"였으나 10 고정으로 바뀜.)
 - **점수**(`rules.ts` 한 곳): **콤보 단계에만 비례**. 3초 안에 이어서 성공하면 연속 횟수가 쌓이고, 단계 = min(연속 횟수, 5), 획득 점수 = 단계 × 10 (10/20/30/40/50). 타일 수·숫자는 점수와 무관.
 - **모드는 하나**: 매번 완전 랜덤 시드. 막힘 방지: 보충 뒤 합 10 을 만들 수 있는 경로가 없으면 판을 새로 뽑는다(`hasMove`/`reshuffle`).
 - **종료 화면**: 🔄 다시 시작 / 🏆 랭킹 등록하기 / 처음으로(메인 메뉴). 랭킹은 닉네임 입력 → `five_link_submit`. 닉네임(대소문자 무시)별 그날 최고 점수 한 줄. 날짜는 서버(`five_link_today`, 한국 시간)가 기준. 7일 지난 기록은 제출 때 삭제. **점수는 클라이언트가 보내므로 조작 가능**(친구끼리 전제).
-- **구조**: `engine.ts`(순수 함수, React 무관) / `rules.ts`(상수·점수) / `hooks/useFiveLink.ts`(입력·타이머·콤보) / `components/Board.tsx`(타일은 id 키 + transform 전환으로 낙하 연출). 입력 좌표는 칸 단위, 타일 중앙 원 안에서만 인식해 대각선 이동 시 옆 칸 오인식 방지, 빠른 드래그는 구간을 쪼개 칸 누락 방지.
-- **연출**: 타일은 흰색에 가까운 파스텔(배경 `-50` + 옅은 테두리, 숫자색 `-500/600`). 새 타일은 아래 칸부터·왼쪽 열부터 물결처럼 가속 낙하 → 착지에서 납작해졌다 튕김 + 잔상(`tile-drop`/`tile-trail`, 지연값은 `engine.ts` 가 타일 생성 때 `Tile.delay` 로 정해 두어 재렌더에도 애니메이션이 다시 시작되지 않음). 제거된 타일은 번쩍이며 사라지고 사방으로 조각이 튄다(콤보 단계가 높을수록 많고 멀리), 3단계부터 판 전체가 번쩍인다. `prefers-reduced-motion` 이면 전역 CSS 규칙이 애니메이션을 거의 0으로 줄인다.
+- **구조**: `engine.ts`(순수 함수, React 무관) / `rules.ts`(상수·점수) / `hooks/useLinkTen.ts`(입력·타이머·콤보) / `components/Board.tsx`(타일은 id 키 + transform 전환으로 낙하 연출). 입력 좌표는 칸 단위, 타일 중앙 원 안에서만 인식해 대각선 이동 시 옆 칸 오인식 방지, 빠른 드래그는 구간을 쪼개 칸 누락 방지.
+- **연출**: 타일은 3D 블록 느낌의 파스텔 무지개(`Board.tsx` 의 `TILE_PALETTE`: 윗면 광택·그라데이션·안쪽 빛/그림자·아랫면 두께·바닥 그림자, 선택하면 눌린 모양 + 파란/황금 테두리). 새 타일은 아래 칸부터·왼쪽 열부터 물결처럼 가속 낙하 → 착지에서 납작해졌다 튕김 + 잔상(`tile-drop`/`tile-trail`, 지연값은 `engine.ts` 가 타일 생성 때 `Tile.delay` 로 정해 두어 재렌더에도 애니메이션이 다시 시작되지 않음). 제거된 타일은 번쩍이며 사라지고 사방으로 조각이 튄다(콤보 단계가 높을수록 많고 멀리), 3단계부터 판 전체가 번쩍인다. `prefers-reduced-motion` 이면 전역 CSS 규칙이 애니메이션을 거의 0으로 줄인다.
 - **효과음**(`sfx.ts` `linkClear`): 콤보 1단계는 가벼운 "띵", 2~5단계로 갈수록 아르페지오 음 수·옥타브 반짝임·낮은 받침음·노이즈 울림이 늘고 으뜸음이 온음씩 올라가며, 5단계는 화음 팡파르 + 묵직한 저음. 6연속 이후는 5단계와 같다.
 - **UI 통일 규칙**(이번에 정리): 메인으로 돌아가는 링크/버튼 이름은 모든 화면에서 **"처음으로"**, 게임 끝난 뒤 재도전은 **"🔄 다시 시작"**, 로딩 문구는 "...", 홈 게임 카드는 이름 + 버튼만(부연설명 없음), "방 코드로 참가하기"가 홈 맨 위.
 - **못 한 것**: ① **`0005_game_five_link.sql` 을 DB 에 실행하지 않았다**(랭킹 등록/조회 미검증 — 실행 전에는 시작 화면 랭킹이 "불러오지 못했어요"로 보이지만 게임은 정상). ② 모바일 실기기 터치 드래그. ③ 판 크기(8×8)·숫자 분포·점수 계수는 플레이하며 조정 예정.

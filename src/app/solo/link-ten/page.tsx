@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import FiveLinkGame from "@/games/five-link/FiveLinkGame";
+import LinkTenGame from "@/games/link-ten/LinkTenGame";
 
 export const metadata: Metadata = {
-  title: "Five Link",
+  title: "Link Ten",
   description: "합이 5의 배수가 되게 타일을 이어 보세요",
 };
 
-export default function FiveLinkPage() {
-  return <FiveLinkGame />;
+export default function LinkTenPage() {
+  return <LinkTenGame />;
 }
