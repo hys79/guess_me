@@ -7,22 +7,22 @@ import { Board } from "./components/Board";
 import { Hud } from "./components/Hud";
 import { RankingPanel } from "./components/RankingPanel";
 import { ResultCard } from "./components/ResultCard";
-import { useFiveLink } from "./hooks/useFiveLink";
+import { useLinkTen } from "./hooks/useLinkTen";
 import { fetchToday, loadBest, localKstToday } from "./lib/ranking";
-import { FIVE_LINK } from "./rules";
+import { LINK_TEN } from "./rules";
 
 const RULES = [
   "숫자 타일을 드래그해서 선으로 이어요. 대각선도 되고, 같은 타일을 다시 지나거나 줄을 엇갈리게 긋는 건 안 돼요.",
-  `2칸 이상 이어서 합이 ${FIVE_LINK.targetSum}이 되면 타일 테두리가 빛나요. 그때 손을 떼면 사라져요.`,
+  `2칸 이상 이어서 합이 ${LINK_TEN.targetSum}이 되면 타일 테두리가 빛나요. 그때 손을 떼면 사라져요.`,
   "사라진 자리는 위에서 새 타일이 채워요.",
-  `${FIVE_LINK.comboWindowMs / 1000}초 안에 이어서 성공하면 콤보가 쌓여요. 점수는 콤보 단계(1~${FIVE_LINK.maxCombo}단계)에 비례해요.`,
+  `${LINK_TEN.comboWindowMs / 1000}초 안에 이어서 성공하면 콤보가 쌓여요. 점수는 콤보 단계(1~${LINK_TEN.maxCombo}단계)에 비례해요.`,
 ];
 
 const BACK_LINK = "text-sm text-slate-400 hover:text-primary-600";
 
-export default function FiveLinkGame() {
+export default function LinkTenGame() {
   const router = useRouter();
-  const g = useFiveLink();
+  const g = useLinkTen();
   const [today, setToday] = useState(localKstToday());
   const [registered, setRegistered] = useState<{ nickname: string; day: string } | null>(null);
   const [rankKey, setRankKey] = useState(0);
@@ -57,10 +57,10 @@ export default function FiveLinkGame() {
             🔗
           </p>
           <h1 className="mt-2 text-4xl font-extrabold tracking-tight text-primary-700">
-            Five Link
+            Link Ten
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            {FIVE_LINK.durationSec}초 동안 합이 {FIVE_LINK.targetSum}이 되게 이어 보세요
+            {LINK_TEN.durationSec}초 동안 합이 {LINK_TEN.targetSum}이 되게 이어 보세요
           </p>
         </header>
 

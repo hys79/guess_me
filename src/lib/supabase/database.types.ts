@@ -148,7 +148,7 @@ export type SongAttempt = {
   created_at: string;
 };
 
-/** Five Link(1인용) 하루 랭킹 한 줄 */
+/** Link Ten(1인용) 하루 랭킹 한 줄 */
 export type FiveLinkScore = {
   day: string; // YYYY-MM-DD (한국 시간 기준)
   nickname_key: string;

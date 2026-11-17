@@ -76,7 +76,7 @@ npm install
 | [`0002_cleanup_cron.sql`](supabase/migrations/0002_cleanup_cron.sql) | 운영: `pg_cron` 이 15분마다 "마지막 활동이 2시간 넘은 방" 삭제(하위 행 cascade). `create extension` 이 권한으로 막히면 대시보드 **Database → Extensions** 에서 `pg_cron` 을 켠 뒤 이 파일만 다시 실행 |
 | [`0003_game_guess_me.sql`](supabase/migrations/0003_game_guess_me.sql) | Guess Me 전용: `rounds` · `answers` · `answer_reactions` · `questions_bank`(레거시) · `advance_to_scoring` · `finalize_round` · `promote_host` · `restart_everyone_game` · `guess_me_on_leave` |
 | [`0004_game_song.sql`](supabase/migrations/0004_game_song.sql) | 노래 맞히기 전용: `song_*` 테이블 · 정답 보호(RLS) · 출제/재생/정답/힌트 RPC · `song_on_leave` |
-| [`0005_game_five_link.sql`](supabase/migrations/0005_game_five_link.sql) | Five Link(1인용) 전용: `five_link_scores`(하루 랭킹) · `five_link_today` · `five_link_submit`. 방/플레이어와 무관, pg_cron 불필요(7일 지난 기록은 제출 때 함께 삭제) |
+| [`0005_game_five_link.sql`](supabase/migrations/0005_game_five_link.sql) | Link Ten(1인용) 전용: `five_link_scores`(하루 랭킹) · `five_link_today` · `five_link_submit`. 방/플레이어와 무관, pg_cron 불필요(7일 지난 기록은 제출 때 함께 삭제) |
 
 > - 새 게임을 추가하면 `0006_game_<이름>.sql` 처럼 다음 번호로 한 파일만 더하면 된다(공통 파일은 수정 불필요).
 > - 이전에는 `0001_schema.sql` 한 파일이었다. 공통 / 게임별로 쪼갰을 뿐 내용은 이어진다.
@@ -212,11 +212,11 @@ supabase/
   migrations/0002_cleanup_cron.sql  방치된 방 자동 삭제(pg_cron, 2시간 TTL)
   migrations/0003_game_guess_me.sql Guess Me 전용
   migrations/0004_game_song.sql     노래 맞히기 전용
-  migrations/0005_game_five_link.sql Five Link(1인용) 하루 랭킹
+  migrations/0005_game_five_link.sql Link Ten(1인용) 하루 랭킹
 src/
   app/
     page.tsx               홈: 게임 카드 목록 + 혼자 하기 + 방 코드로 참가
-    solo/five-link/page.tsx  1인용 게임은 방 없이 /solo/<게임> 으로 바로 시작
+    solo/link-ten/page.tsx  1인용 게임은 방 없이 /solo/<게임> 으로 바로 시작
     create/page.tsx        /create?game=<id> 방 생성 (게임별 옵션)
     join/page.tsx          방 참가 (게임 무관)
     room/[code]/page.tsx   방 셸: 실시간 구독 · 입장 확인 · 대기실 · 게임 화면 선택
@@ -224,8 +224,8 @@ src/
     registry.ts            게임 메타데이터 (이름·아이콘·최소 인원·BGM) + 허브 이름
     types.ts ui.ts         게임이 구현할 계약(GameUI) · 게임 id → 구현 매핑
     guess-me/              GuessMeRoom · CreateOptions · components/ · lib/ · hooks/
-    five-link/             1인용: FiveLinkGame · rules.ts(점수/콤보) · engine.ts(순수 로직)
-                           components/ (Board · Hud · ResultCard · RankingPanel) · hooks/useFiveLink · lib/ranking
+    link-ten/              1인용: LinkTenGame · rules.ts(점수/콤보) · engine.ts(순수 로직)
+                           components/ (Board · Hud · ResultCard · RankingPanel) · hooks/useLinkTen · lib/ranking
     song/                  SongRoom · CreateOptions · rules.ts
                            components/ (SongSetup · ClipPlayer · YouTubeFrame · GuessPanel
                                         · SetterPanel · HintList · RevealCard · SongFinished)
@@ -263,7 +263,7 @@ src/
 - **answer_reactions** — `round_id` · `answer_id` · `player_id` · `emoji`(❤️ 고정). `(answer_id, player_id)` 유일 — 결과 공개 화면 좋아요 전용
 - **questions_bank** — (레거시) 스키마에만 존재, 앱 미사용
 
-**Five Link (0005)** — 1인용, 방 없음
+**Link Ten (0005)** — 1인용, 방 없음
 - **five_link_scores** — `(day, nickname_key)` 유일. 닉네임별 그날 최고 점수 한 줄. `day` 는 한국 시간 기준 날짜. 쓰기는 `five_link_submit` RPC 로만, 읽기는 누구나. 점수는 브라우저가 보내므로 조작 가능(친구끼리 전제).
 
 **노래 맞히기 (0004)**

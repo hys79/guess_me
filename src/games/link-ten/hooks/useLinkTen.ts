@@ -15,7 +15,7 @@ import {
   type Grid,
   type Tile,
 } from "../engine";
-import { FIVE_LINK, comboStage, isValidSum, moveScore } from "../rules";
+import { LINK_TEN, comboStage, isValidSum, moveScore } from "../rules";
 import { saveBest } from "../lib/ranking";
 
 export type Phase = "ready" | "countdown" | "playing" | "over";
@@ -50,13 +50,13 @@ const SAMPLE_STEP = 0.2;
 function hitCell(x: number, y: number, radius: number): Cell | null {
   const c = Math.floor(x);
   const r = Math.floor(y);
-  if (r < 0 || r >= FIVE_LINK.rows || c < 0 || c >= FIVE_LINK.cols) return null;
+  if (r < 0 || r >= LINK_TEN.rows || c < 0 || c >= LINK_TEN.cols) return null;
   const dx = x - (c + 0.5);
   const dy = y - (r + 0.5);
   return dx * dx + dy * dy <= radius * radius ? { r, c } : null;
 }
 
-export function useFiveLink() {
+export function useLinkTen() {
   const { play } = useSound();
   const playRef = useRef(play);
   useEffect(() => {
@@ -169,7 +169,7 @@ export function useFiveLink() {
     setPhaseBoth("countdown");
 
     // 3, 2, 1 → 시작
-    let left = FIVE_LINK.countdownSec;
+    let left = LINK_TEN.countdownSec;
     setCountdown(left);
     playRef.current("tick");
     const step = () => {
@@ -180,7 +180,7 @@ export function useFiveLink() {
         later(step, 1000);
       } else {
         const t = Date.now();
-        endAtRef.current = t + FIVE_LINK.durationSec * 1000;
+        endAtRef.current = t + LINK_TEN.durationSec * 1000;
         setEndAt(endAtRef.current);
         setNow(t);
         setPhaseBoth("playing");
@@ -228,7 +228,7 @@ export function useFiveLink() {
       setGrid(nextGrid);
 
       streakRef.current = streakNow;
-      comboDeadlineRef.current = t + FIVE_LINK.comboWindowMs;
+      comboDeadlineRef.current = t + LINK_TEN.comboWindowMs;
       scoreRef.current += gain;
       movesRef.current += 1;
       if (streakNow > bestComboRef.current) bestComboRef.current = streakNow;
@@ -343,7 +343,7 @@ export function useFiveLink() {
   // 선택 중인 경로가 확정 가능한 합인지 (화면에서 테두리를 빛나게 하는 기준 — 합 숫자는 보여 주지 않는다)
   const valid = grid ? isValidSum(pathSum(grid, path), path.length) : false;
 
-  const timeLeftMs = phase === "playing" ? Math.max(0, endAt - now) : phase === "over" ? 0 : FIVE_LINK.durationSec * 1000;
+  const timeLeftMs = phase === "playing" ? Math.max(0, endAt - now) : phase === "over" ? 0 : LINK_TEN.durationSec * 1000;
   const comboLeftMs = phase === "playing" ? Math.max(0, comboDeadline - now) : 0;
 
   return {

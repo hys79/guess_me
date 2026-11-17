@@ -1,12 +1,12 @@
 /**
- * Five Link — 규칙/점수 상수 (한 곳에서만 조정한다).
+ * Link Ten — 규칙/점수 상수 (한 곳에서만 조정한다).
  *
  * 숫자 타일(1~9)을 드래그로 이어 합이 정확히 10이 되면 제거. 제거된 자리는 위에서 새 타일이
  * 떨어져 항상 판이 꽉 차 있다. 점수는 "연속 성공(콤보) 단계"에만 비례한다 — 타일을 몇 개 썼는지,
  * 어떤 숫자였는지는 점수에 영향이 없다.
  */
 
-export const FIVE_LINK = {
+export const LINK_TEN = {
   rows: 8,
   cols: 8,
   /** 게임 시간(초) */
@@ -32,14 +32,14 @@ export const FIVE_LINK = {
 
 /** streak = 이번 성공이 몇 번째 연속인지(1부터). 단계는 1~maxCombo 로 제한된다. */
 export function comboStage(streak: number): number {
-  return Math.min(Math.max(Math.floor(streak), 1), FIVE_LINK.maxCombo);
+  return Math.min(Math.max(Math.floor(streak), 1), LINK_TEN.maxCombo);
 }
 
 /** 이번 성공으로 얻는 점수 — 콤보 단계에만 비례 (1단계 10점 … 5단계 50점) */
 export function moveScore(streak: number): number {
-  return comboStage(streak) * FIVE_LINK.pointsPerStage;
+  return comboStage(streak) * LINK_TEN.pointsPerStage;
 }
 
 export function isValidSum(sum: number, n: number): boolean {
-  return n >= FIVE_LINK.minTiles && sum === FIVE_LINK.targetSum;
+  return n >= LINK_TEN.minTiles && sum === LINK_TEN.targetSum;
 }

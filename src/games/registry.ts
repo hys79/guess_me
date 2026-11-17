@@ -54,10 +54,10 @@ export interface SoloGameMeta {
 
 export const SOLO_GAMES: SoloGameMeta[] = [
   {
-    id: "five_link",
-    name: "Five Link",
+    id: "link_ten",
+    name: "Link Ten",
     icon: "🔗",
-    href: "/solo/five-link",
+    href: "/solo/link-ten",
   },
 ];
 

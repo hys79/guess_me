@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FIVE_LINK } from "../rules";
+import { LINK_TEN } from "../rules";
 import { fetchToday, loadNickname, saveNickname, submitScore } from "../lib/ranking";
 
 interface ResultCardProps {
@@ -106,8 +106,8 @@ export function ResultCard({
               className="input-field text-center"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
-              maxLength={FIVE_LINK.nicknameMax}
-              placeholder={`닉네임 (최대 ${FIVE_LINK.nicknameMax}자)`}
+              maxLength={LINK_TEN.nicknameMax}
+              placeholder={`닉네임 (최대 ${LINK_TEN.nicknameMax}자)`}
               autoFocus
             />
             <button type="submit" disabled={busy || !nickname.trim()} className="btn-secondary w-full">
