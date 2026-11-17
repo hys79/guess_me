@@ -15,10 +15,7 @@ export type GameId = "guess_me" | "song";
 export interface GameMeta {
   id: GameId;
   name: string;
-  tagline: string;
   icon: string;
-  /** 카드에 표시하는 권장 인원 */
-  players: string;
   /** 시작에 필요한 최소 인원 */
   minPlayers: number;
   /** false 면 이 게임 방에서는 배경음악을 끈다 (게임 자체가 소리를 쓰는 경우) */
@@ -29,20 +26,38 @@ export const GAMES: GameMeta[] = [
   {
     id: "guess_me",
     name: "Guess Me!",
-    tagline: "나를 가장 잘 아는 사람은 누구?",
     icon: "🎯",
-    players: "3명 이상 추천",
     minPlayers: 2,
     bgm: true,
   },
   {
     id: "song",
     name: "노래 맞히기",
-    tagline: "짧은 구간만 듣고 제목을 맞혀라",
     icon: "🎧",
-    players: "2명 이상",
     minPlayers: 2,
     bgm: false,
+  },
+];
+
+/**
+ * 1인용 게임 — 방/대기실/닉네임 없이 홈 카드에서 바로 시작한다.
+ * 화면은 app/solo/<path>/page.tsx, 코드는 games/<id>/ 에 둔다.
+ * (랭킹 등이 필요하면 해당 게임의 SQL 파일 1개 — 예: 0005_game_five_link.sql)
+ */
+export interface SoloGameMeta {
+  id: string;
+  name: string;
+  icon: string;
+  /** 홈 카드가 이동할 경로 */
+  href: string;
+}
+
+export const SOLO_GAMES: SoloGameMeta[] = [
+  {
+    id: "five_link",
+    name: "Five Link",
+    icon: "🔗",
+    href: "/solo/five-link",
   },
 ];
 

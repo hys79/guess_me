@@ -148,6 +148,18 @@ export type SongAttempt = {
   created_at: string;
 };
 
+/** Five Link(1인용) 하루 랭킹 한 줄 */
+export type FiveLinkScore = {
+  day: string; // YYYY-MM-DD (한국 시간 기준)
+  nickname_key: string;
+  nickname: string;
+  score: number;
+  moves: number;
+  best_combo: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type SongReady = {
   id: string;
   round_id: string;
@@ -266,6 +278,12 @@ export interface Database {
         Update: Partial<SongAttempt>;
         Relationships: [];
       };
+      five_link_scores: {
+        Row: FiveLinkScore;
+        Insert: Partial<FiveLinkScore>;
+        Update: Partial<FiveLinkScore>;
+        Relationships: [];
+      };
       song_ready: {
         Row: SongReady;
         Insert: {
@@ -369,6 +387,20 @@ export interface Database {
       song_next_round: {
         Args: { p_room_id: string; p_player_id: string };
         Returns: undefined;
+      };
+      five_link_today: {
+        Args: Record<PropertyKey, never>;
+        Returns: string;
+      };
+      five_link_submit: {
+        Args: {
+          p_day: string;
+          p_nickname: string;
+          p_score: number;
+          p_moves: number;
+          p_best_combo: number;
+        };
+        Returns: number;
       };
     };
     Enums: {

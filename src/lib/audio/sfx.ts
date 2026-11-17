@@ -14,7 +14,10 @@ export type SfxName =
   | "reveal"
   | "win"
   | "tick"
-  | "yourTurn"; // 다같이 모드: 내 차례가 됐을 때
+  | "yourTurn" // 다같이 모드: 내 차례가 됐을 때
+  | "linkStep" // Five Link: 타일을 한 칸 이을 때 (level = 지금까지 이은 칸 수)
+  | "linkClear" // Five Link: 제거 성공 (level = 콤보 횟수, 1~5단계로 제한되어 단계가 높을수록 웅장)
+  | "linkFail"; // Five Link: 합이 안 맞아 취소
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
@@ -115,7 +118,8 @@ function noiseBurst(
   src.start(t0);
 }
 
-export function playSfx(name: SfxName) {
+/** level 은 일부 효과음(linkStep/linkClear)의 음높이·세기를 정하는 선택 값 */
+export function playSfx(name: SfxName, level = 0) {
   const context = ensureContext();
   if (!context || !master) return;
   const out = master;
@@ -167,6 +171,83 @@ export function playSfx(name: SfxName) {
       break;
     case "tick":
       tone(context, out, { freq: 880, type: "square", dur: 0.04, gain: 0.08 });
+      break;
+    case "linkStep": {
+      // 5음 음계 위로 올라가는 짧은 틱 — 이을수록 음이 높아진다
+      const scale = [0, 2, 4, 7, 9];
+      const idx = Math.max(0, level - 1);
+      const semis = scale[idx % 5] + 12 * Math.floor(idx / 5);
+      tone(context, out, {
+        freq: 392 * Math.pow(2, Math.min(semis, 24) / 12),
+        type: "triangle",
+        dur: 0.07,
+        gain: 0.11,
+      });
+      break;
+    }
+    case "linkClear": {
+      // 콤보 단계(1~5)가 높을수록 음이 많아지고, 낮은 베이스·울림·반짝임이 겹쳐 웅장해진다.
+      // 단계마다 으뜸음도 온음씩 올라가 "더 올라가고 있다"는 느낌을 준다.
+      const stage = Math.min(Math.max(Math.round(level), 1), 5);
+      const root = 392 * Math.pow(2, ((stage - 1) * 2) / 12);
+      // 장3화음 + 옥타브 위로 쌓이는 아르페지오 비율
+      const RATIOS = [1, 1.26, 1.5, 2, 2.52, 3];
+      const notes = [2, 3, 4, 5, 6][stage - 1];
+      const step = [0.07, 0.06, 0.055, 0.05, 0.045][stage - 1];
+
+      if (stage === 1) {
+        // 가볍게 "띵"
+        tone(context, out, { freq: root * 1.5, type: "sine", dur: 0.1, gain: 0.2 });
+        tone(context, out, { freq: root * 2, type: "sine", start: 0.07, dur: 0.16, gain: 0.2 });
+        noiseBurst(context, out, { start: 0, dur: 0.1, gain: 0.04 });
+        break;
+      }
+
+      for (let i = 0; i < notes; i += 1) {
+        const f = root * RATIOS[i];
+        const t = i * step;
+        tone(context, out, {
+          freq: f,
+          type: stage >= 4 ? "triangle" : "sine",
+          start: t,
+          dur: 0.14 + (stage - 2) * 0.03,
+          gain: 0.17,
+        });
+        // 3단계부터 한 옥타브 위 반짝임을 겹친다
+        if (stage >= 3) {
+          tone(context, out, { freq: f * 2, type: "sine", start: t + 0.01, dur: 0.1, gain: 0.06 });
+        }
+      }
+
+      const end = (notes - 1) * step;
+      if (stage >= 3) {
+        // 낮은 받침음
+        tone(context, out, { freq: root / 2, type: "sine", dur: 0.28, gain: 0.2 });
+      }
+      if (stage >= 4) {
+        noiseBurst(context, out, { start: end, dur: 0.28, gain: 0.07 });
+        tone(context, out, { freq: root * 2, type: "triangle", start: end, dur: 0.4, gain: 0.1 });
+      }
+      if (stage >= 5) {
+        // 팡파르: 마지막에 화음을 길게 울리고 위로 훑는 소리 + 묵직한 저음
+        for (const r of [1, 1.26, 1.5, 2]) {
+          tone(context, out, { freq: root * r, type: "square", start: end, dur: 0.55, gain: 0.05 });
+          tone(context, out, { freq: root * r * 2, type: "triangle", start: end, dur: 0.6, gain: 0.07 });
+        }
+        tone(context, out, { freq: root / 4, type: "sine", dur: 0.5, gain: 0.26 });
+        tone(context, out, {
+          freq: 300,
+          type: "sawtooth",
+          dur: 0.32,
+          gain: 0.04,
+          glideTo: 1500,
+        });
+        noiseBurst(context, out, { start: end, dur: 0.5, gain: 0.1 });
+      }
+      break;
+    }
+    case "linkFail":
+      tone(context, out, { freq: 240, type: "triangle", dur: 0.11, gain: 0.12, glideTo: 170 });
       break;
     case "yourTurn":
       tone(context, out, { freq: 587.33, type: "square", dur: 0.09, gain: 0.14 });

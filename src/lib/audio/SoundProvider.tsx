@@ -28,7 +28,7 @@ interface SoundContextValue extends SoundSettings {
   setMuted: (v: boolean) => void;
   setBgmVolume: (v: number) => void;
   setSfxVolume: (v: number) => void;
-  play: (name: SfxName) => void;
+  play: (name: SfxName, level?: number) => void;
   /** true 면 배경음악을 멈춘다 (게임 자체가 소리를 쓰는 방 — 예: 노래 맞히기) */
   setBgmSuppressed: (v: boolean) => void;
   /** 지금 배경음악이 꺼져 있는가. 설정 창이 "배경음악" 대신 "음악 소리"를 보여 주는 기준 */
@@ -201,9 +201,9 @@ export function SoundProvider({ children }: { children: React.ReactNode }) {
     [],
   );
   const play = useCallback(
-    (name: SfxName) => {
+    (name: SfxName, level?: number) => {
       if (settings.muted || settings.sfxVolume <= 0) return;
-      playSfx(name);
+      playSfx(name, level);
     },
     [settings.muted, settings.sfxVolume],
   );
