@@ -164,6 +164,138 @@
   }
 }
 
+/* Five Link */
+
+/* 새 타일 낙하: 가속하며 떨어져(길쭉하게) → 착지에서 납작하게 찌그러졌다가 → 살짝 튀어 올라 안착 */
+@keyframes tile-drop {
+  0% {
+    transform: translateY(var(--drop-y, -100%)) scale(0.9, 1.14);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.55, 0, 0.95, 0.55);
+  }
+  10% {
+    opacity: 1;
+  }
+  66% {
+    transform: translateY(0) scale(1.14, 0.8);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  82% {
+    transform: translateY(-9%) scale(0.96, 1.06);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+/* 아래 칸이 비어서 밀려 내려오는 기존 타일: 처음부터 보이고(투명 X), 같은 물리(가속 → 착지 찌그러짐 → 튕김) */
+@keyframes tile-shift {
+  0% {
+    transform: translateY(var(--drop-y, -100%)) scale(1, 1);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.95, 0.55);
+  }
+  12% {
+    transform: translateY(var(--drop-y, -100%)) scale(0.95, 1.06);
+    animation-timing-function: cubic-bezier(0.55, 0, 0.95, 0.55);
+  }
+  66% {
+    transform: translateY(0) scale(1.12, 0.84);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.4, 1);
+  }
+  82% {
+    transform: translateY(-7%) scale(0.97, 1.04);
+    animation-timing-function: ease-in;
+  }
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+}
+
+/* 떨어지는 타일 위에 남는 잔상 */
+@keyframes tile-trail {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.4);
+  }
+  15% {
+    opacity: 0.85;
+    transform: scaleY(1);
+  }
+  66% {
+    opacity: 0.5;
+    transform: scaleY(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+}
+
+/* 제거되는 타일: 번쩍하며 부풀었다가 사라진다 */
+@keyframes tile-out {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+    filter: brightness(1);
+  }
+  30% {
+    transform: scale(1.22);
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: scale(0.1);
+    opacity: 0;
+    filter: brightness(1.6);
+  }
+}
+
+/* 제거 지점에서 사방으로 튀는 조각 */
+@keyframes particle-burst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.1);
+    opacity: 0;
+  }
+}
+
+/* 높은 콤보에서 판 전체가 한 번 번쩍임 */
+@keyframes board-flash {
+  0% {
+    opacity: var(--flash, 0.3);
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes board-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+.animate-tile-out {
+  animation: tile-out 0.36s ease-in both;
+}
+.animate-board-shake {
+  animation: board-shake 0.3s ease-in-out both;
+}
+
 .animate-fade-in {
   animation: fade-in 0.25s ease-out both;
 }
